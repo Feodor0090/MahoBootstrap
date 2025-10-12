@@ -12,6 +12,10 @@ public abstract class JavaOutputBase : IOutput
 {
     public void Accept(string targetFolder, FrozenDictionary<string, ClassModel> models)
     {
+        var binPath = Path.Combine(targetFolder, "bin");
+        var sourcePath = Path.Combine(targetFolder, "source");
+        if (Directory.Exists(sourcePath))
+            Directory.Delete(sourcePath, true);
         foreach (var model in models.Values)
         {
             CompilationUnit cu = new CompilationUnit();
@@ -110,11 +114,10 @@ public abstract class JavaOutputBase : IOutput
                 }
             }
 
-            string basePath = Path.Combine(targetFolder, Path.Combine(model.pkg.Split('.')));
+            string basePath = Path.Combine(sourcePath, Path.Combine(model.pkg.Split('.')));
             Directory.CreateDirectory(basePath);
 
             var filePath = Path.Combine(basePath, model.name + ".java");
-            File.Delete(filePath);
             File.WriteAllText(filePath, cu.toString());
         }
     }
