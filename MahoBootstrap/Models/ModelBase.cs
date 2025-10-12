@@ -4,10 +4,10 @@ namespace MahoBootstrap.Models;
 
 public abstract class ModelBase
 {
-    public readonly MemberAccess Access;
+    public readonly MemberAccess access;
 
-    public ModelBase(MemberAccess access)
+    protected ModelBase(MemberAccess access)
     {
-        Access = access;
+        this.access = access;
     }
 }

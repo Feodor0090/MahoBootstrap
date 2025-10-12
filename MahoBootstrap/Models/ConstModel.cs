@@ -33,6 +33,8 @@ public class ConstModel : DataModel
                     return typeof(sbyte);
                 case "boolean":
                     return typeof(bool);
+                case "char":
+                    return typeof(char);
                 case "java.lang.String":
                     return typeof(string);
                 default:

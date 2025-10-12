@@ -2,13 +2,13 @@ namespace MahoBootstrap.Models;
 
 public readonly struct CodeArgument : IEquatable<CodeArgument>
 {
-    public readonly string Type;
-    public readonly string Name;
+    public readonly string type;
+    public readonly string name;
 
     public CodeArgument(string type, string name)
     {
-        Type = type;
-        Name = name;
+        this.type = type;
+        this.name = name;
     }
 
     public static CodeArgument FromTuple((string type, string name) tuple)
@@ -18,13 +18,13 @@ public readonly struct CodeArgument : IEquatable<CodeArgument>
 
     public void Deconstruct(out string type, out string name)
     {
-        type = Type;
-        name = Name;
+        type = this.type;
+        name = this.name;
     }
 
     public bool Equals(CodeArgument other)
     {
-        return Type == other.Type && Name == other.Name;
+        return type == other.type && name == other.name;
     }
 
     public override bool Equals(object? obj)
@@ -34,7 +34,7 @@ public readonly struct CodeArgument : IEquatable<CodeArgument>
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Type, Name);
+        return HashCode.Combine(type, name);
     }
 
     public static bool operator ==(CodeArgument left, CodeArgument right)

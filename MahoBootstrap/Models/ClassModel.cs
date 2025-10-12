@@ -133,7 +133,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
             for (int i = 0; i < list.Count; i++)
             {
                 var li = list[i];
-                if (ri.Access == li.Access && ri.arguments.SequenceEqual(li.arguments))
+                if (ri.access == li.access && ri.arguments.SequenceEqual(li.arguments))
                 {
                     if (li.throws.SequenceEqual(ri.throws))
                     {
@@ -143,7 +143,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
                     }
 
                     // merging
-                    list[i] = new CtorModel(li.Access, MergeSimple(li.throws, ri.throws), li.arguments);
+                    list[i] = new CtorModel(li.access, MergeSimple(li.throws, ri.throws), li.arguments);
                     found = true;
                     break;
                 }
@@ -165,7 +165,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
             for (int i = 0; i < list.Count; i++)
             {
                 var li = list[i];
-                if (ri.Access == li.Access && ri.arguments.SequenceEqual(li.arguments) &&
+                if (ri.access == li.access && ri.arguments.SequenceEqual(li.arguments) &&
                     ri.returnType == li.returnType && ri.name == li.name && ri.type == li.type)
                 {
                     if (li.throws.SequenceEqual(ri.throws))
@@ -176,7 +176,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
                     }
 
                     // merging
-                    list[i] = new MethodModel(li.Access, MergeSimple(li.throws, ri.throws), li.arguments, li.returnType,
+                    list[i] = new MethodModel(li.access, MergeSimple(li.throws, ri.throws), li.arguments, li.returnType,
                         li.name, li.type);
                     found = true;
                     break;

@@ -1,13 +1,13 @@
 using System.Collections.Frozen;
-using MahoBootstrap.Prototypes;
+using MahoBootstrap.Models;
 
 namespace MahoBootstrap.Outputs;
 
 public class PrinterOutput : IOutput
 {
-    public void Accept(string targetFolder, FrozenDictionary<string, ClassPrototype> prototypes)
+    public void Accept(string targetFolder, FrozenDictionary<string, ClassModel> models)
     {
-        foreach (var proto in prototypes.Values)
+        foreach (var proto in models.Values)
         {
             Console.WriteLine(proto.fullName + " extends " + proto.parent);
             foreach (var method in proto.methods)

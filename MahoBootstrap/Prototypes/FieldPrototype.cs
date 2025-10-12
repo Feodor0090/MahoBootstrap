@@ -6,5 +6,4 @@ public class FieldPrototype
     public MemberType memberType;
     public string name;
     public string fieldType;
-    public string? value;
 }

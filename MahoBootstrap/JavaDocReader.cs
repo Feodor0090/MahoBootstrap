@@ -2,6 +2,7 @@ using AngleSharp;
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
+using MahoBootstrap.Models;
 using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap;
@@ -39,7 +40,7 @@ public static class JavaDocReader
         return cp;
     }
 
-    public static void ApplyConstants(Dictionary<string, ClassPrototype> protos, string constsDocument)
+    public static void ApplyConstants(Dictionary<string, ClassModel> models, string constsDocument)
     {
         IDocument doc = service.ParseDocument(constsDocument);
         var list = doc.Body!.Children
@@ -58,7 +59,7 @@ public static class JavaDocReader
             if (header.Attributes["colspan"]?.Value != "3")
                 continue;
             var className = header.TextContent.Trim();
-            if (!protos.TryGetValue(className, out var proto))
+            if (!models.TryGetValue(className, out var model))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Class {className} has constants but not parsed!");
@@ -72,7 +73,7 @@ public static class JavaDocReader
                 var decl = line[0].TextContent.Trim();
                 var name = line[1].TextContent.Trim();
                 var value = line[2].TextContent.Trim();
-                proto.fields.First(x => x.name == name).value = value;
+                model.consts.First(x => x.name == name).constantValue = value;
             }
         }
     }

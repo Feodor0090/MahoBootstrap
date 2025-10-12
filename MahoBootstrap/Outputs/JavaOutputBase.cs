@@ -3,24 +3,25 @@ using com.github.javaparser;
 using com.github.javaparser.ast;
 using com.github.javaparser.ast.body;
 using com.github.javaparser.ast.type;
+using MahoBootstrap.Models;
 using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Outputs;
 
 public abstract class JavaOutputBase : IOutput
 {
-    public void Accept(string targetFolder, FrozenDictionary<string, ClassPrototype> prototypes)
+    public void Accept(string targetFolder, FrozenDictionary<string, ClassModel> models)
     {
-        foreach (var proto in prototypes.Values)
+        foreach (var model in models.Values)
         {
             CompilationUnit cu = new CompilationUnit();
-            cu.setPackageDeclaration(proto.pkg);
+            cu.setPackageDeclaration(model.pkg);
 
             List<Modifier.Keyword> classMods = new()
             {
                 Modifier.Keyword.PUBLIC
             };
-            switch (proto.type)
+            switch (model.classType)
             {
                 case ClassType.Final:
                     classMods.Add(Modifier.Keyword.FINAL);
@@ -30,36 +31,35 @@ public abstract class JavaOutputBase : IOutput
                     break;
             }
 
-            ClassOrInterfaceDeclaration cls = proto.type == ClassType.Interface
-                ? cu.addInterface(proto.name, classMods.ToArray())
-                : cu.addClass(proto.name, classMods.ToArray());
+            ClassOrInterfaceDeclaration cls = model.classType == ClassType.Interface
+                ? cu.addInterface(model.name, classMods.ToArray())
+                : cu.addClass(model.name, classMods.ToArray());
 
-            foreach (var field in proto.fields)
+            foreach (var field in model.fields)
+                cls.addField(field.fieldType, field.name, ToKeywords(field.access, field.type));
+
+            foreach (var field in model.consts)
             {
-                if (field.value == null && !StaticJavaParser.parseType(field.fieldType).isReferenceType())
-                    cls.addField(field.fieldType, field.name, ToKeywords(field.access, field.memberType));
-                else
-                {
-                    var init = StaticJavaParser.parseExpression(field.value ?? "null");
-                    var type = StaticJavaParser.parseType(field.fieldType);
-                    var decl = new VariableDeclarator(type, field.name, init);
-                    var nodeList = new NodeList(ToKeywords(field.access, field.memberType)
-                        .Select(x => (Node)new Modifier(x)).ToArray());
-                    var fd2 = new FieldDeclaration(nodeList, decl);
-                    cls.addMember(fd2);
-                }
+                var init = StaticJavaParser.parseExpression(field.constantValue ?? "null");
+                var type = StaticJavaParser.parseType(field.fieldType);
+                var decl = new VariableDeclarator(type, field.name, init);
+                var nodeList = new NodeList(ToKeywords(field.access, field.type)
+                    .Select(x => (Node)new Modifier(x)).ToArray());
+                var fd2 = new FieldDeclaration(nodeList, decl);
+                cls.addMember(fd2);
             }
 
-            if (proto.type == ClassType.Interface)
+
+            if (model.classType == ClassType.Interface)
             {
-                foreach (var implements in proto.implements)
+                foreach (var implements in model.implements)
                     cls.addExtends(implements);
-                foreach (var method in proto.methods)
+                foreach (var method in model.methods)
                 {
                     var m = cls.addMethod(method.name, ToKeywords(method.access, MemberType.Abstract));
                     m.setType(method.returnType);
 
-                    foreach (var arg in method.args)
+                    foreach (var arg in method.arguments)
                         m.addParameter(arg.type, arg.name);
 
                     foreach (var @throw in method.throws)
@@ -70,50 +70,50 @@ public abstract class JavaOutputBase : IOutput
             }
             else
             {
-                if (proto.name != "java.lang.Object")
+                if (model.name != "java.lang.Object")
                 {
-                    if (proto.parent != null)
-                        cls.addExtends(proto.parent);
-                    foreach (var implements in proto.implements)
+                    if (model.parent != null)
+                        cls.addExtends(model.parent);
+                    foreach (var implements in model.implements)
                         cls.addImplements(implements);
                 }
 
-                if (proto.constructors.Count == 0)
+                if (model.ctors.Length == 0)
                 {
                     cls.addConstructor(ToKeywords(MemberAccess.Package, MemberType.Regular));
                 }
 
-                foreach (var ctor in proto.constructors)
+                foreach (var ctor in model.ctors)
                 {
                     var c = cls.addConstructor(ToKeywords(ctor.access, MemberType.Regular));
-                    foreach (var arg in ctor.args)
+                    foreach (var arg in ctor.arguments)
                         c.addParameter(arg.type, arg.name);
                     foreach (var @throw in ctor.throws)
-                        c.addThrownException(new ClassOrInterfaceType(@throw));
+                        c.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
                 }
 
-                foreach (var method in proto.methods)
+                foreach (var method in model.methods)
                 {
                     var m = cls.addMethod(method.name, ToKeywords(method.access, method.type));
                     m.setType(method.returnType);
 
-                    foreach (var arg in method.args)
+                    foreach (var arg in method.arguments)
                         m.addParameter(arg.type, arg.name);
 
                     foreach (var @throw in method.throws)
-                        m.addThrownException(new ClassOrInterfaceType(@throw));
+                        m.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
 
                     if (m.isAbstract())
                         m.removeBody();
                     else
-                        FillMethodBody(m, method, proto);
+                        FillMethodBody(m, method, model);
                 }
             }
 
-            string basePath = Path.Combine(targetFolder, Path.Combine(proto.pkg.Split('.')));
+            string basePath = Path.Combine(targetFolder, Path.Combine(model.pkg.Split('.')));
             Directory.CreateDirectory(basePath);
 
-            var filePath = Path.Combine(basePath, proto.name + ".java");
+            var filePath = Path.Combine(basePath, model.name + ".java");
             File.Delete(filePath);
             File.WriteAllText(filePath, cu.toString());
         }
@@ -128,7 +128,7 @@ public abstract class JavaOutputBase : IOutput
         return keywords;
     }
 
-    protected abstract void FillMethodBody(MethodDeclaration m, MethodPrototype proto, ClassPrototype cls);
+    protected abstract void FillMethodBody(MethodDeclaration m, MethodModel model, ClassModel cls);
 
     public static void ToKeywords(MemberAccess ma, List<Modifier.Keyword> mods)
     {
