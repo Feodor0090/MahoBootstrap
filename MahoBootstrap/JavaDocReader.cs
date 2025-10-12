@@ -248,10 +248,7 @@ public static class JavaDocReader
         {
             if (defNode is IText tn)
             {
-                var a = tn.Text.Replace(" ", " ").Replace("(", " ( ").Replace(")", " ) ").Replace(",", " , ")
-                    .Replace("[", " [")
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                defTokens.AddRange(a);
+                defTokens.AddRange(SplitDeclarationText(tn));
             }
             else if (defNode is IHtmlAnchorElement link)
             {
@@ -264,6 +261,14 @@ public static class JavaDocReader
         }
 
         return defTokens;
+    }
+
+    private static string[] SplitDeclarationText(IText tn)
+    {
+        var a = tn.Text.Replace(" ", " ").Replace("(", " ( ").Replace(")", " ) ").Replace(",", " , ")
+            .Replace("[", " [")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return a;
     }
 
     private static bool SkipToNextDefinition(ref List<IElement>.Enumerator en)
@@ -304,17 +309,17 @@ public static class JavaDocReader
         if (ct == ClassType.Interface)
         {
             if (dlElem.Children.Length > 1)
-                implements = dlElem.Children[1].Children.CollectClassRefs(pkg);
+                implements = dlElem.Children[1].ChildNodes.CollectClassParents(pkg);
             else
                 implements = new();
         }
         else
         {
             if (dlElem.Children.Length > 1)
-                parent = dlElem.Children[1].Children.CollectClassRefs(pkg)[0];
+                parent = dlElem.Children[1].ChildNodes.CollectClassParents(pkg)[0];
 
             if (dlElem.Children.Length > 2)
-                implements = dlElem.Children[2].Children.CollectClassRefs(pkg);
+                implements = dlElem.Children[2].ChildNodes.CollectClassParents(pkg);
             else
                 implements = new();
         }
@@ -328,12 +333,27 @@ public static class JavaDocReader
         return cp;
     }
 
-    private static List<string> CollectClassRefs(this IHtmlCollection<IElement> links, string pkg)
+    private static List<string> CollectClassParents(this INodeList nodes, string pkg)
     {
         List<string> list = new List<string>();
-        foreach (var e in links)
+        foreach (var n in nodes)
         {
-            list.Add(GlobalizeReference(pkg, e));
+            if (n is IHtmlAnchorElement a)
+                list.Add(GlobalizeReference(pkg, a));
+            else if (n is IText t)
+            {
+                var tokens = SplitDeclarationText(t);
+                foreach (var token in tokens)
+                {
+                    if (token == "extends")
+                        continue;
+                    if (token == "implements")
+                        continue;
+                    if (token == ",")
+                        continue;
+                    list.Add(token);
+                }
+            }
         }
 
         return list;

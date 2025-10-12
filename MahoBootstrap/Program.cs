@@ -4,7 +4,12 @@ using MahoBootstrap.Models;
 using MahoBootstrap.Outputs;
 
 // ARGS
-string[] docRoots = ["/home/ansel/Desktop/УБЕРЙОБАДОКИ"];
+string[] docRoots =
+[
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/midp-2.0",
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/cldc-1.1",
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr135"
+];
 string target = "nativejava";
 
 Dictionary<string, ClassModel> classes = new();
@@ -30,6 +35,8 @@ foreach (var docRoot in docRoots)
             if (file.Contains("/package-frame.html"))
                 continue;
             if (file.Contains("/package-summary.html"))
+                continue;
+            if (file.Contains("/copyright-notice.html"))
                 continue;
             try
             {
@@ -75,5 +82,5 @@ switch (target)
 
 void Use<T>() where T : IOutput, new()
 {
-    new T().Accept("/tmp/mbs/", classes.ToFrozenDictionary());
+    new T().Accept("/tmp/mbs", classes.ToFrozenDictionary());
 }
