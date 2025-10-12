@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Diagnostics;
 using com.github.javaparser;
 using com.github.javaparser.ast;
 using com.github.javaparser.ast.body;
@@ -120,6 +121,13 @@ public abstract class JavaOutputBase : IOutput
             var filePath = Path.Combine(basePath, model.name + ".java");
             File.WriteAllText(filePath, cu.toString());
         }
+
+        Directory.CreateDirectory(binPath);
+        ProcessStartInfo psi = new ProcessStartInfo("/usr/bin/bash");
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(
+            $"javac -d \"{binPath}\" -sourcepath \"{sourcePath}\" -bootclasspath classes `find \"{sourcePath}\" -name \"*.java\"`");
+        Process.Start(psi).WaitForExit();
     }
 
     private static Modifier.Keyword[] ToKeywords(MemberAccess memberAccess, MemberType fieldMemberType)
