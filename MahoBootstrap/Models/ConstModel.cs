@@ -2,7 +2,7 @@ using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
 
-public class ConstModel : DataModel
+public sealed class ConstModel : DataModel, IEquatable<ConstModel>
 {
     public readonly Type dotnetType;
 
@@ -12,6 +12,13 @@ public class ConstModel : DataModel
     {
         dotnetType = GetConstType(fp) ?? throw new ArgumentException();
     }
+
+    public override string ToString() => $"const {fieldType} {name} = {constantValue}";
+    public bool Equals(ConstModel? other) => Equals((DataModel?)other);
+    public override bool Equals(object? obj) => ReferenceEquals(this, obj) || obj is ConstModel other && Equals(other);
+    public override int GetHashCode() => base.GetHashCode();
+    public static bool operator ==(ConstModel? left, ConstModel? right) => Equals(left, right);
+    public static bool operator !=(ConstModel? left, ConstModel? right) => !Equals(left, right);
 
     public static Type? GetConstType(FieldPrototype fp)
     {

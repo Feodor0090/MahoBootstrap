@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using AngleSharp;
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
@@ -27,6 +28,9 @@ public static class JavaDocReader
                 title.SkipWhile(x => x.TagName != "HR").First(x => x.TagName == "DL"));
         }
 
+        if (body.Last().TagName == "BLOCKQUOTE")
+            body = body.Last().Children;
+
         ParseFields(cp,
             body.SkipWhile(x => !IsFieldsBegin(x))
                 .TakeWhile(x => !IsConstructorsBegin(x) && !IsMethodsBegin(x) && !IsNavBarBegin(x)).ToList());
@@ -40,41 +44,42 @@ public static class JavaDocReader
         return cp;
     }
 
-    public static void ApplyConstants(Dictionary<string, ClassModel> models, string constsDocument)
+    public static FrozenDictionary<string, FrozenDictionary<string, string>> ExtractConstants(string constsDocument)
     {
+        Dictionary<string, FrozenDictionary<string, string>> d = new();
         IDocument doc = service.ParseDocument(constsDocument);
-        var list = doc.Body!.Children
-            .SkipWhile(x => x.TagName != "HR")
-            .TakeWhile(x => !IsNavBarBegin(x))
-            .Where(x => x.TagName == "TABLE" && x.Children.Length == 1)
+        var validTables = doc.QuerySelectorAll("table").Where(x => x.Children.Length == 1)
             .Select(x => x.Children[0])
             .Where(x => x.TagName == "TBODY" && x.Children.Length >= 2 && x.Children.All(y => y.TagName == "TR"))
-            .Select(x => x.Children)
+            .Where(x => x.QuerySelectorAll("table").Length == 0).ToList();
+        var list = validTables.Select(x => x.Children)
+            .Where(x => x[0].Children[0].TagName == "TD" && x[0].Children[0].Attributes["colspan"]?.Value == "3")
             .ToList();
         foreach (var item in list)
         {
-            var header = item[0].Children[0];
-            if (header.TagName != "TD")
-                continue;
-            if (header.Attributes["colspan"]?.Value != "3")
-                continue;
-            var className = header.TextContent.Trim();
-            if (!models.TryGetValue(className, out var model))
+            var className = item[0].Children[0].TextContent.Trim();
+            Dictionary<string, string> fields = new();
+
+            foreach (var tr in item.Skip(1))
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Class {className} has constants but not parsed!");
-                Console.WriteLine();
-                Console.ResetColor();
-                continue;
+                var tds = tr.Children;
+                var decl = tds[0].TextContent.Trim();
+                var name = tds[1].TextContent.Trim();
+                var value = tds[2].TextContent.Trim();
+                fields.Add(name, value);
             }
 
-            foreach (var line in item.Skip(1).Select(x => x.Children))
-            {
-                var decl = line[0].TextContent.Trim();
-                var name = line[1].TextContent.Trim();
-                var value = line[2].TextContent.Trim();
-                model.consts.First(x => x.name == name).constantValue = value;
-            }
+            d.Add(className, fields.ToFrozenDictionary());
+        }
+
+        return d.ToFrozenDictionary();
+    }
+
+    public static void ApplyConstants(ClassModel model, FrozenDictionary<string, string> map)
+    {
+        foreach (var item in map)
+        {
+            model.consts.First(x => x.name == item.Key).constantValue = item.Value;
         }
     }
 

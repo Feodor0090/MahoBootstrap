@@ -5,6 +5,11 @@ namespace MahoBootstrap.Models;
 
 public sealed class ClassModel : IEquatable<ClassModel>
 {
+    /// <summary>
+    /// Where this class was read? Null if merged/generated.
+    /// </summary>
+    public readonly string? source;
+
     public readonly ClassType classType;
     public readonly string pkg;
     public readonly string name;
@@ -19,8 +24,10 @@ public sealed class ClassModel : IEquatable<ClassModel>
     /// Froze prototype to read-only model.
     /// </summary>
     /// <param name="cp">Prototype</param>
-    public ClassModel(ClassPrototype cp)
+    /// <param name="from">Source of the class</param>
+    public ClassModel(ClassPrototype cp, string? from)
     {
+        source = from;
         classType = cp.type;
         pkg = cp.pkg;
         name = cp.name;
@@ -39,6 +46,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
     /// <param name="class2">Overlay model.</param>
     public ClassModel(ClassModel class1, ClassModel class2)
     {
+        source = null;
         if (class1.classType == class2.classType)
         {
             classType = class1.classType;
@@ -117,6 +125,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
     }
 
     public static ImmutableArray<T> MergeSimple<T>(IEnumerable<T> left, IEnumerable<T> right)
+        where T : IEquatable<T>
     {
         HashSet<T> set = new();
         foreach (var item in left) set.Add(item);
@@ -165,8 +174,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
             for (int i = 0; i < list.Count; i++)
             {
                 var li = list[i];
-                if (ri.access == li.access && ri.arguments.SequenceEqual(li.arguments) &&
-                    ri.returnType == li.returnType && ri.name == li.name && ri.type == li.type)
+                if (ri.access == li.access && ri.HasSameSignature(li) && ri.type == li.type)
                 {
                     if (li.throws.SequenceEqual(ri.throws))
                     {

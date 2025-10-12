@@ -16,6 +16,8 @@ Dictionary<string, ClassModel> classes = new();
 
 foreach (var docRoot in docRoots)
 {
+    var consts = JavaDocReader.ExtractConstants(File.ReadAllText(Path.Combine(docRoot, "constant-values.html")));
+
     foreach (var dir in Directory.EnumerateDirectories(docRoot))
     {
         var name = Path.GetFileName(dir);
@@ -42,13 +44,11 @@ foreach (var docRoot in docRoots)
             {
                 var text = File.ReadAllText(file);
                 var proto = JavaDocReader.Parse(text);
-                var modelNext = new ClassModel(proto);
+                var modelNext = new ClassModel(proto, file);
+                if (consts.TryGetValue(modelNext.fullName, out var map))
+                    JavaDocReader.ApplyConstants(modelNext, map);
 
-                if (!classes.ContainsKey(proto.fullName))
-                {
-                    classes.Add(proto.fullName, new ClassModel(proto));
-                }
-                else
+                if (!classes.TryAdd(proto.fullName, modelNext))
                 {
                     var modelPrev = classes[proto.fullName];
                     classes[proto.fullName] = new ClassModel(modelPrev, modelNext);
@@ -64,8 +64,6 @@ foreach (var docRoot in docRoots)
             }
         }
     }
-
-    JavaDocReader.ApplyConstants(classes, File.ReadAllText(Path.Combine(docRoot, "constant-values.html")));
 }
 
 

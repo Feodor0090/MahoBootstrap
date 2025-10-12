@@ -24,4 +24,21 @@ public sealed class MethodModel : CodeModel
         this.name = name;
         this.type = type;
     }
+
+    public bool HasSameSignature(MethodModel other)
+    {
+        if (name != other.name)
+            return false;
+        if (returnType != other.returnType)
+            return false;
+        if (arguments.Length != other.arguments.Length)
+            return false;
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            if (!arguments[i].type.Equals(other.arguments[i].type))
+                return false;
+        }
+
+        return true;
+    }
 }
