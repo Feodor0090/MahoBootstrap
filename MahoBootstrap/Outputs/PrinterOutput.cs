@@ -9,7 +9,7 @@ public class PrinterOutput : IOutput
     {
         foreach (var proto in prototypes.Values)
         {
-            Console.WriteLine(proto.FullName + " extends " + proto.parent);
+            Console.WriteLine(proto.fullName + " extends " + proto.parent);
             foreach (var method in proto.methods)
             {
                 Console.Write("   ");

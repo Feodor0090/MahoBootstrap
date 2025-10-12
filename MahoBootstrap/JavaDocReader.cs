@@ -8,12 +8,12 @@ namespace MahoBootstrap;
 
 public static class JavaDocReader
 {
-    private static readonly IBrowsingContext Context = BrowsingContext.New(Configuration.Default);
-    private static readonly IHtmlParser Service = Context.GetService<IHtmlParser>()!;
+    private static readonly IBrowsingContext context = BrowsingContext.New(Configuration.Default);
+    private static readonly IHtmlParser service = context.GetService<IHtmlParser>()!;
 
     public static ClassPrototype Parse(string document)
     {
-        IDocument doc = Service.ParseDocument(document);
+        IDocument doc = service.ParseDocument(document);
         return Parse(doc.Body!.Children);
     }
 
@@ -22,7 +22,7 @@ public static class JavaDocReader
         ClassPrototype cp;
         {
             var title = body.SkipWhile(x => x.TagName != "H2").ToArray();
-            cp = parseDefinition(title.First(x => x.TagName == "H2"),
+            cp = ParseDefinition(title.First(x => x.TagName == "H2"),
                 title.SkipWhile(x => x.TagName != "HR").First(x => x.TagName == "DL"));
         }
 
@@ -41,7 +41,7 @@ public static class JavaDocReader
 
     public static void ApplyConstants(Dictionary<string, ClassPrototype> protos, string constsDocument)
     {
-        IDocument doc = Service.ParseDocument(constsDocument);
+        IDocument doc = service.ParseDocument(constsDocument);
         var list = doc.Body!.Children
             .SkipWhile(x => x.TagName != "HR")
             .TakeWhile(x => !IsNavBarBegin(x))
@@ -82,7 +82,7 @@ public static class JavaDocReader
         var en = list.GetEnumerator();
         while (true)
         {
-            if (skipToNextDefinition(ref en))
+            if (SkipToNextDefinition(ref en))
                 return;
 
             var defTokens = ExtractDeclTokensFromPre(cp, ref en);
@@ -115,7 +115,7 @@ public static class JavaDocReader
         var en = list.GetEnumerator();
         while (true)
         {
-            if (skipToNextDefinition(ref en))
+            if (SkipToNextDefinition(ref en))
                 return;
 
             var defTokens = ExtractDeclTokensFromPre(cp, ref en);
@@ -140,7 +140,7 @@ public static class JavaDocReader
         var en = list.GetEnumerator();
         while (true)
         {
-            if (skipToNextDefinition(ref en))
+            if (SkipToNextDefinition(ref en))
                 return;
 
             var defTokens = ExtractDeclTokensFromPre(cp, ref en);
@@ -265,7 +265,7 @@ public static class JavaDocReader
         return defTokens;
     }
 
-    private static bool skipToNextDefinition(ref List<IElement>.Enumerator en)
+    private static bool SkipToNextDefinition(ref List<IElement>.Enumerator en)
     {
         do
         {
@@ -282,7 +282,7 @@ public static class JavaDocReader
         return false;
     }
 
-    private static ClassPrototype parseDefinition(IElement h2Elem, IElement dlElem)
+    private static ClassPrototype ParseDefinition(IElement h2Elem, IElement dlElem)
     {
         string pkg = h2Elem.Children[0].TextContent.Trim();
         string name = h2Elem.ChildNodes.Last().TextContent.Split(' ').Last().Trim();
@@ -303,17 +303,17 @@ public static class JavaDocReader
         if (ct == ClassType.Interface)
         {
             if (dlElem.Children.Length > 1)
-                implements = dlElem.Children[1].Children.collectClassRefs(pkg);
+                implements = dlElem.Children[1].Children.CollectClassRefs(pkg);
             else
                 implements = new();
         }
         else
         {
             if (dlElem.Children.Length > 1)
-                parent = dlElem.Children[1].Children.collectClassRefs(pkg)[0];
+                parent = dlElem.Children[1].Children.CollectClassRefs(pkg)[0];
 
             if (dlElem.Children.Length > 2)
-                implements = dlElem.Children[2].Children.collectClassRefs(pkg);
+                implements = dlElem.Children[2].Children.CollectClassRefs(pkg);
             else
                 implements = new();
         }
@@ -327,7 +327,7 @@ public static class JavaDocReader
         return cp;
     }
 
-    private static List<string> collectClassRefs(this IHtmlCollection<IElement> links, string pkg)
+    private static List<string> CollectClassRefs(this IHtmlCollection<IElement> links, string pkg)
     {
         List<string> list = new List<string>();
         foreach (var e in links)

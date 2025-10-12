@@ -19,5 +19,5 @@ public class ClassPrototype
         this.parent = parent;
     }
 
-    public string FullName => string.IsNullOrEmpty(pkg) ? name : $"{pkg}.{name}";
+    public string fullName => string.IsNullOrEmpty(pkg) ? name : $"{pkg}.{name}";
 }

@@ -34,7 +34,7 @@ foreach (var dir in Directory.EnumerateDirectories(docRoot))
         {
             var text = File.ReadAllText(file);
             var proto = JavaDocReader.Parse(text);
-            protos[proto.FullName] = proto;
+            protos[proto.fullName] = proto;
         }
         catch (Exception e)
         {

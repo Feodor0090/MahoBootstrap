@@ -3,7 +3,7 @@ namespace MahoBootstrap.Prototypes;
 public class MethodPrototype : ICodePrototype
 {
     public MemberType type;
-    public MemberAccess access;
+    public MemberAccess access { get; set; }
     public string name;
     public string returnType;
     public List<string> throws { get; } = new();
