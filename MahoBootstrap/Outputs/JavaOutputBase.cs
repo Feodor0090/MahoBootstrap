@@ -4,6 +4,7 @@ using System.Text;
 using com.github.javaparser;
 using com.github.javaparser.ast;
 using com.github.javaparser.ast.body;
+using com.github.javaparser.ast.expr;
 using com.github.javaparser.ast.stmt;
 using com.github.javaparser.ast.type;
 using MahoBootstrap.Models;
@@ -43,17 +44,20 @@ public abstract class JavaOutputBase : IOutput
                 : cu.addClass(model.name, classMods.ToArray());
 
             foreach (var field in model.fields)
-                cls.addField(field.fieldType, field.name, ToKeywords(field.access, field.type));
+            {
+                if (field.type == (MemberType.Final | MemberType.Static))
+                {
+                    var init = StaticJavaParser.parseExpression(ConstModel.GetDefaultValue(field.fieldType));
+                    cls.addMember(ToInitedField(init, field));
+                }
+                else
+                    cls.addField(field.fieldType, field.name, ToKeywords(field.access, field.type));
+            }
 
             foreach (var field in model.consts)
             {
                 var init = StaticJavaParser.parseExpression(field.constantValue ?? "null");
-                var type = StaticJavaParser.parseType(field.fieldType);
-                var decl = new VariableDeclarator(type, field.name, init);
-                var nodeList = new NodeList(ToKeywords(field.access, field.type)
-                    .Select(x => (Node)new Modifier(x)).ToArray());
-                var fd2 = new FieldDeclaration(nodeList, decl);
-                cls.addMember(fd2);
+                cls.addMember(ToInitedField(init, field));
             }
 
 
@@ -222,6 +226,13 @@ public abstract class JavaOutputBase : IOutput
         return StaticJavaParser.parseStatement(sb.ToString());
     }
 
+    private static FieldDeclaration ToInitedField(Expression init, DataModel model)
+    {
+        var type = StaticJavaParser.parseType(model.fieldType);
+        var decl = new VariableDeclarator(type, model.name, init);
+        return new FieldDeclaration(AsNodeList(ToMods(model.access, model.type)), decl);
+    }
+
     public static void ToKeywords(MemberAccess ma, List<Modifier.Keyword> mods)
     {
         switch (ma)
@@ -237,6 +248,11 @@ public abstract class JavaOutputBase : IOutput
                 break;
         }
     }
+
+    public static Modifier[] ToMods(MemberAccess ma, MemberType mt) =>
+        ToKeywords(ma, mt).Select(x => new Modifier(x)).ToArray();
+
+    public static NodeList AsNodeList<T>(IEnumerable<T> list) where T : Node => new(list.Cast<Node>().ToArray());
 
     public static void ToKeywords(MemberType mt, List<Modifier.Keyword> mods)
     {
