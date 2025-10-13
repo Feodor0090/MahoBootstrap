@@ -1,8 +1,10 @@
 using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Text;
 using com.github.javaparser;
 using com.github.javaparser.ast;
 using com.github.javaparser.ast.body;
+using com.github.javaparser.ast.stmt;
 using com.github.javaparser.ast.type;
 using MahoBootstrap.Models;
 using MahoBootstrap.Prototypes;
@@ -95,6 +97,68 @@ public abstract class JavaOutputBase : IOutput
                         c.addParameter(arg.type, arg.name);
                     foreach (var @throw in ctor.throws)
                         c.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
+                    if (model.parent != null && models.TryGetValue(model.parent, out var parent))
+                    {
+                        bool needCtorCall = parent.ctors.Length != 0 && !parent.ctors.Any(x => x.arguments.Length == 0);
+                        if (needCtorCall)
+                        {
+                            var ctorCode = c.createBody();
+                            if (parent.ctors.Any(x => x.HasSameSignature(ctor)))
+                            {
+                                ctorCode.addStatement(ToParentCtorCall("super", ctor.arguments));
+                            }
+                            else
+                            {
+                                bool nothingFound = false;
+                                if (ctor.arguments.Length == 0)
+                                {
+                                    nothingFound = true;
+                                }
+                                else
+                                {
+                                    var args = ctor.arguments.ToList();
+
+                                    while (true)
+                                    {
+                                        args.RemoveAt(args.Count - 1);
+                                        if (args.Count == 0)
+                                        {
+                                            nothingFound = true;
+                                            break;
+                                        }
+
+                                        if (model.ctors.Any(x => x.HasSameSignature(args)))
+                                        {
+                                            ctorCode.addStatement(ToParentCtorCall("this", args));
+                                            break;
+                                        }
+
+                                        if (parent.ctors.Any(x => x.HasSameSignature(args)))
+                                        {
+                                            ctorCode.addStatement(ToParentCtorCall("super", args));
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (nothingFound)
+                                {
+                                    StringBuilder sb = new("super");
+                                    sb.Append('(');
+                                    for (var i = 0; i < parent.ctors[0].arguments.Length; i++)
+                                    {
+                                        var arg = parent.ctors[0].arguments[i];
+                                        if (i != 0)
+                                            sb.Append(',');
+                                        sb.Append(ConstModel.GetDefaultValue(arg.type));
+                                    }
+
+                                    sb.Append(");");
+                                    ctorCode.addStatement(StaticJavaParser.parseStatement(sb.ToString()));
+                                }
+                            }
+                        }
+                    }
                 }
 
                 foreach (var method in model.methods)
@@ -140,6 +204,23 @@ public abstract class JavaOutputBase : IOutput
     }
 
     protected abstract void FillMethodBody(MethodDeclaration m, MethodModel model, ClassModel cls);
+
+    private static Statement ToParentCtorCall(string name, IList<CodeArgument> args)
+    {
+        StringBuilder sb = new(name);
+        sb.Append('(');
+
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (i != 0)
+                sb.Append(',');
+            sb.Append(args[i].name);
+        }
+
+        sb.Append(");");
+
+        return StaticJavaParser.parseStatement(sb.ToString());
+    }
 
     public static void ToKeywords(MemberAccess ma, List<Modifier.Keyword> mods)
     {

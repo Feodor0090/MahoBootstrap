@@ -51,4 +51,28 @@ public sealed class ConstModel : DataModel, IEquatable<ConstModel>
 
         return null;
     }
+
+    public static string GetDefaultValue(string type)
+    {
+        switch (type)
+        {
+            case "double":
+                return "0d";
+            case "float":
+                return "0f";
+            case "long":
+            case "int":
+            case "short":
+            case "byte":
+                return "0";
+            case "boolean":
+                return "false";
+            case "char":
+                return "(char)0";
+            case "java.lang.String":
+                return "null";
+            default:
+                return "null";
+        }
+    }
 }
