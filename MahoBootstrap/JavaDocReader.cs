@@ -53,7 +53,7 @@ public static class JavaDocReader
             .Where(x => x.TagName == "TBODY" && x.Children.Length >= 2 && x.Children.All(y => y.TagName == "TR"))
             .Where(x => x.QuerySelectorAll("table").Length == 0).ToList();
         var list = validTables.Select(x => x.Children)
-            .Where(x => x[0].Children[0].TagName == "TD" && x[0].Children[0].Attributes["colspan"]?.Value == "3")
+            .Where(x => x[0].Children[0].Attributes["colspan"]?.Value == "3")
             .ToList();
         foreach (var item in list)
         {
