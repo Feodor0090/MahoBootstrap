@@ -8,7 +8,8 @@ string[] docRoots =
 [
     "/home/ansel/repos/j2me/J2ME_Docs/docs/midp-2.0",
     "/home/ansel/repos/j2me/J2ME_Docs/docs/cldc-1.1",
-    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr135"
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr135",
+    "/home/ansel/Desktop/javadocs/jsr184"
 ];
 string target = "nativejava";
 
@@ -39,6 +40,8 @@ foreach (var docRoot in docRoots)
             if (file.Contains("/package-summary.html"))
                 continue;
             if (file.Contains("/copyright-notice.html"))
+                continue;
+            if (file.Contains("/index-files/"))
                 continue;
             try
             {

@@ -52,7 +52,7 @@ public sealed class ConstModel : DataModel, IEquatable<ConstModel>
         return null;
     }
 
-    public static string GetDefaultValue(string type)
+    public static string GetDefaultValue(string type, bool typed)
     {
         switch (type)
         {
@@ -61,18 +61,21 @@ public sealed class ConstModel : DataModel, IEquatable<ConstModel>
             case "float":
                 return "0f";
             case "long":
+                return "0L";
             case "int":
+                return typed ? "(int)0" : "0";
             case "short":
+                return typed ? "(short)0" : "0";
             case "byte":
-                return "0";
+                return typed ? "(byte)0" : "0";
             case "boolean":
                 return "false";
             case "char":
                 return "(char)0";
             case "java.lang.String":
-                return "null";
+                return typed ? "\"\"" : "null";
             default:
-                return "null";
+                return typed ? $"({type})null" : "null";
         }
     }
 }

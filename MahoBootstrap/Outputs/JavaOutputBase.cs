@@ -47,7 +47,7 @@ public abstract class JavaOutputBase : IOutput
             {
                 if (field.type == (MemberType.Final | MemberType.Static))
                 {
-                    var init = StaticJavaParser.parseExpression(ConstModel.GetDefaultValue(field.fieldType));
+                    var init = StaticJavaParser.parseExpression(ConstModel.GetDefaultValue(field.fieldType, false));
                     cls.addMember(ToInitedField(init, field));
                 }
                 else
@@ -154,7 +154,7 @@ public abstract class JavaOutputBase : IOutput
                                         var arg = parent.ctors[0].arguments[i];
                                         if (i != 0)
                                             sb.Append(',');
-                                        sb.Append(ConstModel.GetDefaultValue(arg.type));
+                                        sb.Append(ConstModel.GetDefaultValue(arg.type, true));
                                     }
 
                                     sb.Append(");");
