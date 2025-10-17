@@ -47,11 +47,20 @@ public abstract class JavaOutputBase : IOutput
             {
                 if (field.type == (MemberType.Final | MemberType.Static))
                 {
-                    var init = StaticJavaParser.parseExpression(ConstModel.GetDefaultValue(field.fieldType, false));
+                    var stubName = "_stubFor_" + field.name;
+                    var stubGetter = cls.addMethod(stubName,
+                    [
+                        Modifier.Keyword.PRIVATE, Modifier.Keyword.STATIC, Modifier.Keyword.NATIVE
+                    ]);
+                    stubGetter.setType(field.fieldType);
+                    stubGetter.removeBody();
+                    var init = StaticJavaParser.parseExpression($"{stubName}()");
                     cls.addMember(ToInitedField(init, field));
                 }
                 else
+                {
                     cls.addField(field.fieldType, field.name, ToKeywords(field.access, field.type));
+                }
             }
 
             foreach (var field in model.consts)
