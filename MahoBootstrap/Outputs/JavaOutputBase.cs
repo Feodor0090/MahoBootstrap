@@ -73,14 +73,14 @@ public abstract class JavaOutputBase : IOutput
             if (model.classType == ClassType.Interface)
             {
                 foreach (var implements in model.implements)
-                    cls.addExtends(implements);
+                    cls.addExtends(ResolveName(implements, models));
                 foreach (var method in model.methods)
                 {
                     var m = cls.addMethod(method.name, ToKeywords(method.access, MemberType.Abstract));
-                    m.setType(method.returnType);
+                    m.setType(ResolveName(method.returnType, models));
 
                     foreach (var arg in method.arguments)
-                        m.addParameter(arg.type, arg.name);
+                        m.addParameter(ResolveName(arg.type, models), arg.name);
 
                     foreach (var @throw in method.throws)
                         m.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
@@ -93,9 +93,9 @@ public abstract class JavaOutputBase : IOutput
                 if (model.name != "java.lang.Object")
                 {
                     if (model.parent != null)
-                        cls.addExtends(model.parent);
+                        cls.addExtends(ResolveName(model.parent, models));
                     foreach (var implements in model.implements)
-                        cls.addImplements(implements);
+                        cls.addImplements(ResolveName(implements, models));
                 }
 
                 if (model.ctors.Length == 0)
@@ -177,10 +177,10 @@ public abstract class JavaOutputBase : IOutput
                 foreach (var method in model.methods)
                 {
                     var m = cls.addMethod(method.name, ToKeywords(method.access, method.type));
-                    m.setType(method.returnType);
+                    m.setType(ResolveName(method.returnType, models));
 
                     foreach (var arg in method.arguments)
-                        m.addParameter(arg.type, arg.name);
+                        m.addParameter(ResolveName(arg.type, models), arg.name);
 
                     foreach (var @throw in method.throws)
                         m.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
@@ -271,5 +271,17 @@ public abstract class JavaOutputBase : IOutput
             mods.Add(Modifier.Keyword.FINAL);
         if (mt.HasFlag(MemberType.Static))
             mods.Add(Modifier.Keyword.STATIC);
+    }
+
+    private static string ResolveName(string name, FrozenDictionary<string, ClassModel> classes)
+    {
+        if (name.Contains('.'))
+            return name;
+        var candidates = classes.Keys.Where(x => x.EndsWith($".{name}")).ToList();
+        if (candidates.Count == 0)
+            return name;
+        if (candidates.Count == 1)
+            return candidates[0];
+        throw new ArgumentException($"Multiple classes with name \"{name}\" found");
     }
 }

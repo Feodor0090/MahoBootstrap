@@ -91,7 +91,7 @@ public static class JavaDocReader
             if (SkipToNextDefinition(ref en))
                 return;
 
-            var defTokens = ExtractDeclTokensFromPre(cp, ref en);
+            var defTokens = ExtractDeclTokens(cp.pkg, en.Current);
 
             var name = defTokens[^1];
 
@@ -124,7 +124,7 @@ public static class JavaDocReader
             if (SkipToNextDefinition(ref en))
                 return;
 
-            var defTokens = ExtractDeclTokensFromPre(cp, ref en);
+            var defTokens = ExtractDeclTokens(cp.pkg, en.Current);
 
             int openBracketPos = defTokens.IndexOf("(");
             ParseModifiers(defTokens.Take(openBracketPos - 1), out var ma, out var mt);
@@ -149,7 +149,7 @@ public static class JavaDocReader
             if (SkipToNextDefinition(ref en))
                 return;
 
-            var defTokens = ExtractDeclTokensFromPre(cp, ref en);
+            var defTokens = ExtractDeclTokens(cp.pkg, en.Current);
 
             int openBracketPos = defTokens.IndexOf("(");
 
@@ -245,27 +245,31 @@ public static class JavaDocReader
         }
     }
 
-    private static List<string> ExtractDeclTokensFromPre(ClassPrototype cp, ref List<IElement>.Enumerator en)
+    private static List<string> ExtractDeclTokens(string classPkg, IElement container)
     {
-        var defNodes = en.Current.ChildNodes;
         List<string> defTokens = new();
-        foreach (var defNode in defNodes)
+        SubExtract(defTokens, container, classPkg);
+        return defTokens;
+
+        static void SubExtract(List<string> list, IElement c, string cp)
         {
-            if (defNode is IText tn)
+            var nodes = c.ChildNodes;
+            foreach (var node in nodes)
             {
-                defTokens.AddRange(SplitDeclarationText(tn));
-            }
-            else if (defNode is IHtmlAnchorElement link)
-            {
-                defTokens.Add(GlobalizeReference(cp.pkg, link));
-            }
-            else if (defNode is HtmlElement he)
-            {
-                defTokens.Add(he.TextContent);
+                if (node is IHtmlAnchorElement link)
+                {
+                    list.Add(GlobalizeReference(cp, link));
+                }
+                else if (node is IText tn)
+                {
+                    list.AddRange(SplitDeclarationText(tn));
+                }
+                else if (node is IElement e)
+                {
+                    SubExtract(list, e, cp);
+                }
             }
         }
-
-        return defTokens;
     }
 
     private static string[] SplitDeclarationText(IText tn)
@@ -297,71 +301,65 @@ public static class JavaDocReader
     {
         string pkg = h2Elem.Children[0].TextContent.Trim();
         string name = h2Elem.ChildNodes.Last().TextContent.Split(' ').Last().Trim();
-        string modsLine = dlElem.Children[0].ChildNodes[0].TextContent;
+        var decl = ExtractDeclTokens(pkg, dlElem);
+
+        List<string> mods = new();
+        List<string> extends = new();
+        List<string> implements = new();
+        List<string> current = mods;
+
+        for (int i = 0; i < decl.Count; i++)
+        {
+            if (decl[i] == "extends")
+            {
+                current = extends;
+                continue;
+            }
+
+            if (decl[i] == "implements")
+            {
+                current = implements;
+                continue;
+            }
+
+            if (decl[i] == ",")
+            {
+                continue;
+            }
+
+            current.Add(decl[i]);
+        }
+
         ClassType ct;
-        if (modsLine.Contains("interface"))
+        if (mods.Contains("interface"))
             ct = ClassType.Interface;
-        else if (modsLine.Contains("final"))
+        else if (mods.Contains("final"))
             ct = ClassType.Final;
-        else if (modsLine.Contains("abstract"))
+        else if (mods.Contains("abstract"))
             ct = ClassType.Abstract;
         else
             ct = ClassType.Regular;
 
         string? parent = null;
-        List<string> implements;
+        List<string> parentInterfs;
 
         if (ct == ClassType.Interface)
         {
-            if (dlElem.Children.Length > 1)
-                implements = dlElem.Children[1].ChildNodes.CollectClassParents(pkg);
-            else
-                implements = new();
+            parentInterfs = extends;
         }
         else
         {
-            if (dlElem.Children.Length > 1)
-                parent = dlElem.Children[1].ChildNodes.CollectClassParents(pkg)[0];
-
-            if (dlElem.Children.Length > 2)
-                implements = dlElem.Children[2].ChildNodes.CollectClassParents(pkg);
-            else
-                implements = new();
+            parent = extends.FirstOrDefault(default(string?));
+            parentInterfs = implements;
         }
 
         if (parent == "java.lang.Object")
             parent = null;
 
         ClassPrototype cp = new ClassPrototype(ct, pkg, name, parent);
-        cp.implements.AddRange(implements);
+        cp.implements.AddRange(parentInterfs);
 
         return cp;
-    }
-
-    private static List<string> CollectClassParents(this INodeList nodes, string pkg)
-    {
-        List<string> list = new List<string>();
-        foreach (var n in nodes)
-        {
-            if (n is IHtmlAnchorElement a)
-                list.Add(GlobalizeReference(pkg, a));
-            else if (n is IText t)
-            {
-                var tokens = SplitDeclarationText(t);
-                foreach (var token in tokens)
-                {
-                    if (token == "extends")
-                        continue;
-                    if (token == "implements")
-                        continue;
-                    if (token == ",")
-                        continue;
-                    list.Add(token);
-                }
-            }
-        }
-
-        return list;
     }
 
     private static string GlobalizeReference(string pkg, IElement link)
