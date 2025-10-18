@@ -15,8 +15,8 @@ string[] docRoots =
     "/home/ansel/Desktop/javadocs/jsr75/file", // File system
     "/home/ansel/Desktop/javadocs/jsr75/pim", // Data system
     "/home/ansel/Desktop/javadocs/iapinfo", // AP info
-    "/home/ansel/Desktop/javadocs/jsr82", // Bluetooth
-    "/home/ansel/Desktop/javadocs/jsr179", // GPS
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr82_1.1.1_javadoc", // Bluetooth
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179-1_1-mrel-javadoc", // GPS
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179_LocationUtil", // GPS Util
     "/home/ansel/Desktop/javadocs/jsr226", // M2G
     "/home/ansel/Desktop/javadocs/jsr234", // AMMS
