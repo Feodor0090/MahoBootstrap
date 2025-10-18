@@ -83,7 +83,7 @@ public abstract class JavaOutputBase : IOutput
                         m.addParameter(ResolveName(arg.type, models), arg.name);
 
                     foreach (var @throw in method.throws)
-                        m.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
+                        m.addThrownException(StaticJavaParser.parseType(ResolveName(@throw, models)) as ReferenceType);
 
                     m.removeBody();
                 }
@@ -109,7 +109,7 @@ public abstract class JavaOutputBase : IOutput
                     foreach (var arg in ctor.arguments)
                         c.addParameter(arg.type, arg.name);
                     foreach (var @throw in ctor.throws)
-                        c.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
+                        c.addThrownException(StaticJavaParser.parseType(ResolveName(@throw, models)) as ReferenceType);
                     if (model.parent != null && models.TryGetValue(model.parent, out var parent))
                     {
                         bool needCtorCall = parent.ctors.Length != 0 && !parent.ctors.Any(x => x.arguments.Length == 0);
@@ -183,7 +183,7 @@ public abstract class JavaOutputBase : IOutput
                         m.addParameter(ResolveName(arg.type, models), arg.name);
 
                     foreach (var @throw in method.throws)
-                        m.addThrownException(StaticJavaParser.parseType(@throw) as ReferenceType);
+                        m.addThrownException(StaticJavaParser.parseType(ResolveName(@throw, models)) as ReferenceType);
 
                     if (m.isAbstract())
                         m.removeBody();
