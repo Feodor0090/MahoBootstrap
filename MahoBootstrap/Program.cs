@@ -17,7 +17,12 @@ Dictionary<string, ClassModel> classes = new();
 
 foreach (var docRoot in docRoots)
 {
-    var consts = JavaDocReader.ExtractConstants(File.ReadAllText(Path.Combine(docRoot, "constant-values.html")));
+    var constsPath = Path.Combine(docRoot, "constant-values.html");
+    FrozenDictionary<string, FrozenDictionary<string, string>> consts;
+    if (File.Exists(constsPath))
+        consts = JavaDocReader.ExtractConstants(File.ReadAllText(constsPath));
+    else
+        consts = FrozenDictionary<string, FrozenDictionary<string, string>>.Empty;
 
     foreach (var dir in Directory.EnumerateDirectories(docRoot))
     {
@@ -40,6 +45,8 @@ foreach (var docRoot in docRoots)
             if (file.Contains("/package-summary.html"))
                 continue;
             if (file.Contains("/copyright-notice.html"))
+                continue;
+            if (file.Contains("/copyright.html"))
                 continue;
             if (file.Contains("/index-files/"))
                 continue;
