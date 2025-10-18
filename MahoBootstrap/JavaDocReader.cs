@@ -155,13 +155,12 @@ public static class JavaDocReader
 
             int modsStart = openBracketPos - 2;
             string returnType;
-            if (defTokens[modsStart][0] == '[')
+            returnType = defTokens[modsStart];
+            while (defTokens[modsStart][0] == '[')
             {
-                returnType = defTokens[modsStart - 1] + defTokens[modsStart];
+                returnType = defTokens[modsStart - 1] + returnType;
                 modsStart--;
             }
-            else
-                returnType = defTokens[modsStart];
 
             ParseModifiers(defTokens.Take(modsStart), out var ma, out var mt);
 
