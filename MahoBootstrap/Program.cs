@@ -6,10 +6,23 @@ using MahoBootstrap.Outputs;
 // ARGS
 string[] docRoots =
 [
-    "/home/ansel/repos/j2me/J2ME_Docs/docs/midp-2.0",
-    "/home/ansel/repos/j2me/J2ME_Docs/docs/cldc-1.1",
-    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr135",
-    "/home/ansel/Desktop/javadocs/jsr184"
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/midp-2.0", // MIDP
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/cldc-1.1", // CLDC
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr135", // MMAPI
+    "/home/ansel/Desktop/javadocs/jsr184", // M3G
+    "/home/ansel/Desktop/javadocs/nokiaui", // NUI
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr211", // Content handler
+    "/home/ansel/Desktop/javadocs/jsr75/file", // File system
+    "/home/ansel/Desktop/javadocs/jsr75/pim", // Data system
+    "/home/ansel/Desktop/javadocs/iapinfo", // AP info
+    "/home/ansel/Desktop/javadocs/jsr82", // Bluetooth
+    "/home/ansel/Desktop/javadocs/jsr179", // GPS
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179_LocationUtil", // GPS Util
+    "/home/ansel/Desktop/javadocs/jsr226", // M2G
+    "/home/ansel/Desktop/javadocs/jsr234", // AMMS
+    "/home/ansel/Desktop/javadocs/jsr256", // Sensors
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr177", // SATS
+    "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr205", // SMS
 ];
 string target = "nativejava";
 
@@ -76,6 +89,7 @@ foreach (var docRoot in docRoots)
     }
 }
 
+Console.WriteLine("Read ok!");
 
 switch (target)
 {
