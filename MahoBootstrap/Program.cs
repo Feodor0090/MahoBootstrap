@@ -19,7 +19,7 @@ string[] docRoots =
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179-1_1-mrel-javadoc", // GPS
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179_LocationUtil", // GPS Util
     "/home/ansel/Desktop/javadocs/jsr226", // M2G
-    "/home/ansel/Desktop/javadocs/jsr234", // AMMS
+    //"/home/ansel/Desktop/javadocs/jsr234", // AMMS
     "/home/ansel/Desktop/javadocs/jsr256", // Sensors
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr177", // SATS
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr205", // SMS
