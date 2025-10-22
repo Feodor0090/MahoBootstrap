@@ -24,7 +24,7 @@ string[] docRoots =
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr177", // SATS
     "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr205", // SMS
 ];
-string target = "nativejava";
+string target = "ms";
 
 Dictionary<string, ClassModel> classes = new();
 
@@ -91,14 +91,15 @@ foreach (var docRoot in docRoots)
 
 Console.WriteLine("Read ok!");
 
-const string path = "/tmp/mbs";
-
 switch (target)
 {
     case "print":
-        new PrinterOutput(classes.ToFrozenDictionary()).Accept(path);
+        new PrinterOutput(classes.ToFrozenDictionary()).Accept("");
         break;
     case "nativejava":
-        new JavaHeadersOutput(classes.ToFrozenDictionary()).Accept(path);
+        new JavaHeadersOutput(classes.ToFrozenDictionary()).Accept("/tmp/mbs/java");
+        break;
+    case "ms":
+        new MidletSharpOutput(classes.ToFrozenDictionary()).Accept("/tmp/mbs/cs");
         break;
 }

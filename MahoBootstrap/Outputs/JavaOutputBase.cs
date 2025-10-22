@@ -158,7 +158,7 @@ public abstract class JavaOutputBase : Output
             string basePath = Path.Combine(sourcePath, Path.Combine(model.pkg.Split('.')));
             Directory.CreateDirectory(basePath);
 
-            var filePath = Path.Combine(basePath, model.name + ".java");
+            var filePath = Path.Combine(basePath, $"{model.name}.java");
             File.WriteAllText(filePath, cu.toString());
         }
 
