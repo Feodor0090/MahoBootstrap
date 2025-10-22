@@ -91,18 +91,14 @@ foreach (var docRoot in docRoots)
 
 Console.WriteLine("Read ok!");
 
+const string path = "/tmp/mbs";
+
 switch (target)
 {
     case "print":
-        Use<PrinterOutput>();
+        new PrinterOutput(classes.ToFrozenDictionary()).Accept(path);
         break;
     case "nativejava":
-        Use<JavaHeadersOutput>();
+        new JavaHeadersOutput(classes.ToFrozenDictionary()).Accept(path);
         break;
-}
-
-
-void Use<T>() where T : IOutput, new()
-{
-    new T().Accept("/tmp/mbs", classes.ToFrozenDictionary());
 }

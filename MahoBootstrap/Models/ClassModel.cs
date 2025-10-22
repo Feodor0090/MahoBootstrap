@@ -97,6 +97,8 @@ public sealed class ClassModel : IEquatable<ClassModel>
 
     public string fullName => string.IsNullOrEmpty(pkg) ? name : $"{pkg}.{name}";
 
+    public bool IsInterface => classType == ClassType.Interface;
+
     public bool Equals(ClassModel? other)
     {
         if (other is null) return false;

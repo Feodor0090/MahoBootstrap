@@ -3,9 +3,16 @@ using MahoBootstrap.Models;
 
 namespace MahoBootstrap.Outputs;
 
-public class PrinterOutput : IOutput
+public class PrinterOutput : Output
 {
-    public void Accept(string targetFolder, FrozenDictionary<string, ClassModel> models)
+    private readonly FrozenDictionary<string, ClassModel> models;
+
+    public PrinterOutput(FrozenDictionary<string, ClassModel> models)
+    {
+        this.models = models;
+    }
+
+    public override void Accept(string targetFolder)
     {
         foreach (var proto in models.Values)
         {
