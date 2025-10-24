@@ -25,6 +25,52 @@ public sealed class MethodModel : CodeModel
         this.type = type;
     }
 
+    public MethodStyle MethodStyle
+    {
+        get
+        {
+            if (name.StartsWith("get") && arguments.Length == 0 && returnType != "void")
+                return MethodStyle.Getter;
+            if (name.StartsWith("is") && arguments.Length == 0 && returnType != "void")
+                return MethodStyle.Getter;
+            if (name.StartsWith("set") && arguments.Length == 1 && returnType == "void")
+                return MethodStyle.Setter;
+            if (name == "size" && arguments.Length == 0)
+                return MethodStyle.Getter;
+            if (name == "get" && arguments.Length == 1 && arguments[0].type == "int" && returnType != "void")
+                return MethodStyle.IndexGetter;
+            if (name == "set" && arguments.Length == 2 && arguments[0].type == "int" && returnType == "void")
+                return MethodStyle.IndexSetter;
+            return MethodStyle.Regular;
+        }
+    }
+
+    public string PropertyType
+    {
+        get
+        {
+            switch (MethodStyle)
+            {
+                case MethodStyle.Getter:
+                    return returnType;
+                case MethodStyle.Setter:
+                    return arguments[0].type;
+                case MethodStyle.IndexGetter:
+                    return returnType;
+                case MethodStyle.IndexSetter:
+                    return arguments[1].type;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+    }
+
+    public override string ToString()
+    {
+        return $"{returnType} {name}()";
+    }
+
+
     public bool HasSameSignature(MethodModel other)
     {
         if (name != other.name)
@@ -41,4 +87,24 @@ public sealed class MethodModel : CodeModel
 
         return true;
     }
+
+    public string dotnetMethodType =>
+        type switch
+        {
+            MemberType.Regular => "virtual",
+            MemberType.Abstract => "abstract",
+            MemberType.Final => "",
+            MemberType.Static => "static",
+            MemberType.Final | MemberType.Static => "static",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
+        };
+}
+
+public enum MethodStyle
+{
+    Regular,
+    Getter,
+    Setter,
+    IndexGetter,
+    IndexSetter,
 }

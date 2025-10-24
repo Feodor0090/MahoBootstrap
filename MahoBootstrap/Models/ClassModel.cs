@@ -97,7 +97,21 @@ public sealed class ClassModel : IEquatable<ClassModel>
 
     public string fullName => string.IsNullOrEmpty(pkg) ? name : $"{pkg}.{name}";
 
-    public bool IsInterface => classType == ClassType.Interface;
+    public bool isInterface => classType == ClassType.Interface;
+
+    public bool isLambdaType =>
+        classType == ClassType.Interface && fields.Length == 0 && consts.Length == 0 && methods.Length == 1;
+
+    public bool isClassEnum
+    {
+        get
+        {
+            if (consts.Length != 0 || ctors.Length != 0 || fields.Length == 0)
+                return false;
+            var type = fields[0].fieldType;
+            return fields.All(x => x.fieldType == type && x.type == (MemberType.Final | MemberType.Static));
+        }
+    }
 
     public bool Equals(ClassModel? other)
     {
@@ -125,6 +139,8 @@ public sealed class ClassModel : IEquatable<ClassModel>
     {
         return !Equals(left, right);
     }
+
+    public override string ToString() => fullName;
 
     public static ImmutableArray<T> MergeSimple<T>(IEnumerable<T> left, IEnumerable<T> right)
         where T : IEquatable<T>

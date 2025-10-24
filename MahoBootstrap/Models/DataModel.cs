@@ -15,6 +15,16 @@ public abstract class DataModel : ModelBase, IEquatable<DataModel>
         fieldType = fp.fieldType;
     }
 
+    public string dotnetFieldType =>
+        type switch
+        {
+            MemberType.Regular => "",
+            MemberType.Final => "readonly",
+            MemberType.Static => "static",
+            MemberType.Final | MemberType.Static => "static readonly",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
+        };
+
     public bool Equals(DataModel? other)
     {
         if (other is null) return false;

@@ -10,4 +10,14 @@ public abstract class ModelBase
     {
         this.access = access;
     }
+
+    public string dotnetAccessMod =>
+        access switch
+        {
+            MemberAccess.Public => "public",
+            MemberAccess.Private => "private",
+            MemberAccess.Protected => "protected",
+            MemberAccess.Package => "internal",
+            _ => throw new ArgumentOutOfRangeException()
+        };
 }
