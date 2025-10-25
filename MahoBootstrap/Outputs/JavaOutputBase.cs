@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Text;
 using com.github.javaparser;
@@ -17,20 +16,13 @@ namespace MahoBootstrap.Outputs;
 
 public abstract class JavaOutputBase : Output
 {
-    private readonly FrozenDictionary<string, ClassModel> _models;
-
-    protected JavaOutputBase(FrozenDictionary<string, ClassModel> models)
-    {
-        this._models = models;
-    }
-
     public override void Accept(string targetFolder)
     {
         var binPath = Path.Combine(targetFolder, "bin");
         var sourcePath = Path.Combine(targetFolder, "source");
         if (Directory.Exists(sourcePath))
             Directory.Delete(sourcePath, true);
-        foreach (var model in _models.Values)
+        foreach (var model in Program.models.Values)
         {
             var cu = new CompilationUnit();
             cu.setPackageDeclaration(model.pkg);
@@ -90,7 +82,7 @@ public abstract class JavaOutputBase : Output
                     var c = cls.addConstructor(ToKeywords(ctor.access, MemberType.Regular));
                     SetArgs(c, ctor);
                     SetThrows(c, ctor);
-                    if (model.parent != null && _models.TryGetValue(model.parent, out var parent))
+                    if (model.parent != null && Program.models.TryGetValue(model.parent, out var parent))
                     {
                         bool needCtorCall = parent.ctors.Length != 0 && !parent.ctors.Any(x => x.arguments.Length == 0);
                         if (needCtorCall)
@@ -181,11 +173,11 @@ public abstract class JavaOutputBase : Output
         return new FieldDeclaration(AsNodeList(ToMods(model.access, model.type)), decl);
     }
 
-    public string ResolveName(string name)
+    public static string ResolveName(string name)
     {
         if (name.Contains('.'))
             return name;
-        var candidates = _models.Keys.Where(x => x.EndsWith($".{name}")).ToList();
+        var candidates = Program.models.Keys.Where(x => x.EndsWith($".{name}")).ToList();
         if (candidates.Count == 0)
             return name;
         if (candidates.Count == 1)

@@ -1,20 +1,10 @@
-using System.Collections.Frozen;
-using MahoBootstrap.Models;
-
 namespace MahoBootstrap.Outputs;
 
 public class PrinterOutput : Output
 {
-    private readonly FrozenDictionary<string, ClassModel> _models;
-
-    public PrinterOutput(FrozenDictionary<string, ClassModel> models)
-    {
-        this._models = models;
-    }
-
     public override void Accept(string targetFolder)
     {
-        foreach (var proto in _models.Values)
+        foreach (var proto in Program.models.Values)
         {
             Console.WriteLine(proto.fullName + " extends " + proto.parent);
             foreach (var method in proto.methods)

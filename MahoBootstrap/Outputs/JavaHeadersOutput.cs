@@ -9,7 +9,7 @@ namespace MahoBootstrap.Outputs;
 
 public class JavaHeadersOutput : JavaOutputBase
 {
-    public JavaHeadersOutput(FrozenDictionary<string, ClassModel> models) : base(models)
+    public JavaHeadersOutput(FrozenDictionary<string, ClassModel> models) : base()
     {
     }
 
