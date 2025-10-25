@@ -17,11 +17,11 @@ namespace MahoBootstrap.Outputs;
 
 public abstract class JavaOutputBase : Output
 {
-    private readonly FrozenDictionary<string, ClassModel> models;
+    private readonly FrozenDictionary<string, ClassModel> _models;
 
     protected JavaOutputBase(FrozenDictionary<string, ClassModel> models)
     {
-        this.models = models;
+        this._models = models;
     }
 
     public override void Accept(string targetFolder)
@@ -30,7 +30,7 @@ public abstract class JavaOutputBase : Output
         var sourcePath = Path.Combine(targetFolder, "source");
         if (Directory.Exists(sourcePath))
             Directory.Delete(sourcePath, true);
-        foreach (var model in models.Values)
+        foreach (var model in _models.Values)
         {
             var cu = new CompilationUnit();
             cu.setPackageDeclaration(model.pkg);
@@ -58,7 +58,7 @@ public abstract class JavaOutputBase : Output
             foreach (var method in model.methods)
             {
                 var m = cls.addMethod(method.name,
-                    ToKeywords(method.access, model.IsInterface ? MemberType.Abstract : method.type));
+                    ToKeywords(method.access, model.isInterface ? MemberType.Abstract : method.type));
                 m.setType(ResolveName(method.returnType));
 
                 SetArgs(m, method);
@@ -70,7 +70,7 @@ public abstract class JavaOutputBase : Output
                     FillMethodBody(m, method, model);
             }
 
-            if (model.IsInterface)
+            if (model.isInterface)
             {
                 foreach (var implements in model.implements)
                     cls.addExtends(ResolveName(implements));
@@ -90,7 +90,7 @@ public abstract class JavaOutputBase : Output
                     var c = cls.addConstructor(ToKeywords(ctor.access, MemberType.Regular));
                     SetArgs(c, ctor);
                     SetThrows(c, ctor);
-                    if (model.parent != null && models.TryGetValue(model.parent, out var parent))
+                    if (model.parent != null && _models.TryGetValue(model.parent, out var parent))
                     {
                         bool needCtorCall = parent.ctors.Length != 0 && !parent.ctors.Any(x => x.arguments.Length == 0);
                         if (needCtorCall)
@@ -185,7 +185,7 @@ public abstract class JavaOutputBase : Output
     {
         if (name.Contains('.'))
             return name;
-        var candidates = models.Keys.Where(x => x.EndsWith($".{name}")).ToList();
+        var candidates = _models.Keys.Where(x => x.EndsWith($".{name}")).ToList();
         if (candidates.Count == 0)
             return name;
         if (candidates.Count == 1)
