@@ -7,6 +7,7 @@ namespace MahoBootstrap;
 internal class Program
 {
     public static FrozenDictionary<string, ClassModel> models = null!;
+
     public static void Main(string[] args)
     {
         string[] docRoots =
@@ -102,6 +103,8 @@ internal class Program
         }
 
         Console.WriteLine("Read ok!");
+        Console.WriteLine(
+            $"Total: {classes.Count} classes, {classes.Values.Sum(x => x.methods.Length)} methods, {classes.Values.Sum(x => x.consts.Length)} constants, {classes.Values.Sum(x => x.fields.Length)} fields");
         models = classes.ToFrozenDictionary();
 
         switch (target)
