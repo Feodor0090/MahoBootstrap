@@ -44,6 +44,14 @@ public static class JavaDocReader
         return cp;
     }
 
+    public static void DumpText(string document, string name)
+    {
+        Directory.CreateDirectory("/tmp/mbs/consts");
+        IDocument doc = service.ParseDocument(document);
+        File.WriteAllLines($"/tmp/mbs/consts/{name}.txt",
+            doc.Body!.TextContent.Split('\n').Where(x => !string.IsNullOrEmpty(x)));
+    }
+
     public static FrozenDictionary<string, FrozenDictionary<string, string>> ExtractConstants(string constsDocument)
     {
         Dictionary<string, FrozenDictionary<string, string>> d = new();
