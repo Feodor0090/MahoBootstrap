@@ -31,7 +31,9 @@ public class MidletSharpOutput : Output
 
     private string PrintClass(ClassModel model)
     {
-        var @namespace = string.Join('.', MapType(model.fullName).Split('.')[..^1]);
+        var ns = string.Join('.', MapType(model.fullName).Split('.')[..^1]);
+        var typeName = MapType(model.fullName).Split('.')[^1];
+
         List<string> lines = new();
 
         if (model.consts.Length != 0)
@@ -46,9 +48,11 @@ public class MidletSharpOutput : Output
         if (model.ctors.Length != 0)
         {
             lines.Add("// CONSTRUCTORS\n");
-            foreach (var cnst in model.ctors)
+            foreach (var ctor in model.ctors)
             {
-                lines.Add("// TODO");
+                lines.Add($"{ctor.dotnetAccessMod} {typeName}({FormatArguments(ctor, ns)})");
+                lines.Add("{");
+                lines.Add("}\n");
             }
         }
 
@@ -125,7 +129,7 @@ public class MidletSharpOutput : Output
             {
                 MethodModel refModel = get ?? set!;
                 lines.Add(
-                    $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.PropertyType), @namespace)} {MapName(refModel)} {{");
+                    $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.PropertyType), ns)} {MapName(refModel)} {{");
                 if (get != null)
                     lines.Add($"    [MapTo(\"{get.name}\")] get;");
                 if (set != null)
@@ -135,19 +139,29 @@ public class MidletSharpOutput : Output
 
             foreach (var m in regularMethods)
             {
-                var argsList = string.Join(", ",
-                    m.arguments.Select(x => $"{CutNamespace(MapType(x.type), @namespace)} {x.name}"));
+                var argsList = FormatArguments(m, ns);
                 lines.Add($"[MapTo(\"{m.name}\")]");
-                var decl = model.isInterface
-                    ? $"{CutNamespace(MapType(m.returnType), @namespace)} {MapName(m)}({argsList});\n"
-                    : $"{m.dotnetAccessMod} {m.dotnetMethodType} extern {CutNamespace(MapType(m.returnType), @namespace)} {MapName(m)}({argsList});\n";
-                lines.Add(decl);
+                if (model.isInterface)
+                {
+                    lines.Add($"{CutNamespace(MapType(m.returnType), ns)} {MapName(m)}({argsList});\n");
+                }
+                else
+                {
+                    string mt = m.dotnetMethodType;
+                    if (mt != "abstract")
+                    {
+                        mt += " extern";
+                    }
+
+                    lines.Add(
+                        $"{m.dotnetAccessMod} {mt} {CutNamespace(MapType(m.returnType), ns)} {MapName(m)}({argsList});\n");
+                }
             }
         }
 
         StringBuilder sb = new(
-            $"using MidletSharp.Attributes;\n\nnamespace {@namespace};\n\n" +
-            $"[MBSGenerated]\n[JrtClass(\"{model.fullName}\")]\npublic partial {(model.isInterface ? "interface" : "class")} {MapType(model.fullName).Split('.')[^1]}");
+            $"using MidletSharp.Attributes;\n\nnamespace {ns};\n\n" +
+            $"[MBSGenerated]\n[JrtClass(\"{model.fullName}\")]\npublic partial {(model.isInterface ? "interface" : "class")} {typeName}");
         if (model.parent != null || model.implements.Length != 0)
         {
             sb.Append(" : ");
@@ -168,5 +182,12 @@ public class MidletSharpOutput : Output
         sb.Append("}\n");
 
         return sb.ToString();
+    }
+
+    private static string FormatArguments(CodeModel m, string ns)
+    {
+        var argsList = string.Join(", ",
+            m.arguments.Select(x => $"{CutNamespace(MapType(x.type), ns)} {x.name}"));
+        return argsList;
     }
 }
