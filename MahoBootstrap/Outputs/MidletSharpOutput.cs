@@ -1,42 +1,172 @@
 using System.Collections.Frozen;
+using System.Text;
 using MahoBootstrap.Models;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static MahoBootstrap.Outputs.MidletSharp.NameMapper;
 
 namespace MahoBootstrap.Outputs;
 
 public class MidletSharpOutput : Output
 {
-    private readonly FrozenDictionary<string, ClassModel> models;
+    private readonly FrozenDictionary<string, ClassModel> _models;
 
     public MidletSharpOutput(FrozenDictionary<string, ClassModel> models)
     {
-        this.models = models;
+        _models = models;
     }
+
 
     public override void Accept(string targetFolder)
     {
-        foreach (var model in models.Values)
+        foreach (var model in _models.Values)
         {
-            TypeDeclarationSyntax tds;
-            if (model.IsInterface)
-            {
-                tds = SyntaxFactory.InterfaceDeclaration(model.name);
-            }
-            else
-            {
-                tds = SyntaxFactory.ClassDeclaration(model.name);
-            }
-
-            var cu = SyntaxFactory.CompilationUnit()
-                .AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("MidletSharp.Attributes")))
-                .AddMembers(SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName(model.pkg)).AddMembers(tds));
-
-            var code = cu.NormalizeWhitespace("    ", Environment.NewLine).ToFullString();
-            var dirPath = Path.Combine(targetFolder, Path.Combine(model.pkg.Split('.')));
+            if (IsTypeBanned(model.fullName))
+                continue;
+            var code = PrintClass(model);
+            var name = MapType(model.fullName);
+            var dirPath = Path.Combine(targetFolder, Path.Combine(name.Split('.')[..^1]));
             Directory.CreateDirectory(dirPath);
-            File.WriteAllText(Path.Combine(dirPath, $"{model.name}.cs"), code);
+            File.WriteAllText(Path.Combine(dirPath, $"{name.Split('.')[^1]}_mbs.cs"), code);
         }
+    }
+
+    private string PrintClass(ClassModel model)
+    {
+        var @namespace = string.Join('.', MapType(model.fullName).Split('.')[..^1]);
+        List<string> lines = new();
+
+        if (model.consts.Length != 0)
+        {
+            lines.Add("// CONSTANTS\n");
+            foreach (var cnst in model.consts)
+            {
+                lines.Add($"public const {MapType(cnst.fieldType)} {cnst.name} = {cnst.constantValue};\n");
+            }
+        }
+
+        if (model.ctors.Length != 0)
+        {
+            lines.Add("// CONSTRUCTORS\n");
+            foreach (var cnst in model.ctors)
+            {
+                lines.Add("// TODO");
+            }
+        }
+
+        if (model.fields.Length != 0)
+        {
+            lines.Add("// FIELDS\n");
+            foreach (var f in model.fields)
+            {
+                lines.Add($"{f.dotnetAccessMod} {f.dotnetFieldType} {MapType(f.fieldType)} @{f.name};\n");
+            }
+        }
+
+        if (model.methods.Length != 0)
+        {
+            lines.Add("// METHODS\n");
+            List<(MethodModel? @get, MethodModel? @set)> props = new();
+            List<MethodModel> regularMethods = new();
+            List<MethodModel> allMethods = new(model.methods);
+            for (int i = allMethods.Count - 1; i >= 0; i = allMethods.Count - 1)
+            {
+                MethodModel method = allMethods[i];
+                switch (method.MethodStyle)
+                {
+                    case MethodStyle.Regular:
+                    case MethodStyle.IndexGetter:
+                    case MethodStyle.IndexSetter:
+                    default:
+                        regularMethods.Add(method);
+                        allMethods.RemoveAt(i);
+                        continue;
+                    case MethodStyle.Getter:
+                        break;
+                    case MethodStyle.Setter:
+                        break;
+                }
+
+                allMethods.RemoveAt(i);
+                for (int j = 0; j < allMethods.Count; j++)
+                {
+                    switch (allMethods[j].MethodStyle)
+                    {
+                        default:
+                            continue;
+                        case MethodStyle.Getter:
+                        case MethodStyle.Setter:
+                        {
+                            if (allMethods[j].MethodStyle != method.MethodStyle &&
+                                MapName(allMethods[j]) == MapName(method) &&
+                                allMethods[j].PropertyType == method.PropertyType)
+                            {
+                                // found getter+setter
+                                if (method.MethodStyle == MethodStyle.Getter)
+                                    props.Add((method, allMethods[j]));
+                                else
+                                    props.Add((allMethods[j], method));
+                                allMethods.RemoveAt(j);
+                                goto found;
+                            }
+
+                            break;
+                        }
+                    }
+                }
+
+                if (method.MethodStyle == MethodStyle.Getter)
+                    props.Add((method, null));
+                else
+                    props.Add((null, method));
+
+                found: ;
+            }
+
+            foreach (var (get, set) in props)
+            {
+                MethodModel refModel = get ?? set!;
+                lines.Add(
+                    $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.PropertyType), @namespace)} {MapName(refModel)} {{");
+                if (get != null)
+                    lines.Add($"    [MapTo(\"{get.name}\")] get;");
+                if (set != null)
+                    lines.Add($"    [MapTo(\"{set.name}\")] set;");
+                lines.Add("}\n");
+            }
+
+            foreach (var m in regularMethods)
+            {
+                var argsList = string.Join(", ",
+                    m.arguments.Select(x => $"{CutNamespace(MapType(x.type), @namespace)} {x.name}"));
+                lines.Add($"[MapTo(\"{m.name}\")]");
+                var decl = model.isInterface
+                    ? $"{CutNamespace(MapType(m.returnType), @namespace)} {MapName(m)}({argsList});\n"
+                    : $"{m.dotnetAccessMod} {m.dotnetMethodType} extern {CutNamespace(MapType(m.returnType), @namespace)} {MapName(m)}({argsList});\n";
+                lines.Add(decl);
+            }
+        }
+
+        StringBuilder sb = new(
+            $"using MidletSharp.Attributes;\n\nnamespace {@namespace};\n\n" +
+            $"[MBSGenerated]\n[JrtClass(\"{model.fullName}\")]\npublic partial {(model.isInterface ? "interface" : "class")} {MapType(model.fullName).Split('.')[^1]}");
+        if (model.parent != null || model.implements.Length != 0)
+        {
+            sb.Append(" : ");
+            List<string> list = new();
+            if (model.parent != null) list.Add(MapType(model.parent));
+            foreach (var p in model.implements)
+                list.Add(MapType(p));
+            sb.Append(string.Join(", ", list));
+        }
+
+        sb.Append("\n{");
+        foreach (var line in lines)
+        {
+            sb.Append("\n    ");
+            sb.Append(line);
+        }
+
+        sb.Append("}\n");
+
+        return sb.ToString();
     }
 }

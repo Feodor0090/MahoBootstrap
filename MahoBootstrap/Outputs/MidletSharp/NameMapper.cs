@@ -1,7 +1,11 @@
+using MahoBootstrap.Models;
+
 namespace MahoBootstrap.Outputs.MidletSharp;
 
 public static class NameMapper
 {
+    #region Types
+
     public static string MapType(string javaType)
     {
         int arrIndex = javaType.IndexOf('[');
@@ -131,7 +135,6 @@ public static class NameMapper
         }
     }
 
-
     private static string Capitalize(string javaType)
     {
         return string.Join('.', javaType.Split('.').Select(x => $"{char.ToUpperInvariant(x[0])}{x[1..]}"));
@@ -141,4 +144,74 @@ public static class NameMapper
     {
         return string.Join('.', javaType.Select(x => $"{char.ToUpperInvariant(x[0])}{x[1..]}"));
     }
+
+    public static string CutNamespace(string type, string ns)
+    {
+        if (type.StartsWith(ns))
+        {
+            if (type[ns.Length] == '.')
+            {
+                if (type.IndexOf('.', ns.Length + 1) == -1)
+                {
+                    return type[(ns.Length + 1)..];
+                }
+            }
+        }
+
+        return type;
+    }
+
+    #endregion
+
+    #region Bans
+
+    /// <summary>
+    /// Determines, does Midlet# constructs the type dynamically from c# type or needs a header.
+    /// </summary>
+    /// <param name="javaType">Java type name.</param>
+    /// <returns>When true, header is not needed.</returns>
+    public static bool IsTypeBanned(string javaType)
+    {
+        switch (javaType)
+        {
+            case "javax.microedition.midlet.MIDlet":
+            case "java.lang.String":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    #endregion
+
+    #region Names
+
+    public static string MapName(MethodModel model)
+    {
+        switch (model.MethodStyle)
+        {
+            case MethodStyle.Regular:
+                break;
+            case MethodStyle.Getter:
+                if (model.name.StartsWith("get"))
+                    return model.name[3..];
+                if (model.name == "size")
+                    return "Count";
+                break;
+            case MethodStyle.Setter:
+                if (model.name.StartsWith("set"))
+                    return model.name[3..];
+                break;
+            case MethodStyle.IndexGetter:
+                break;
+            case MethodStyle.IndexSetter:
+                break;
+            default:
+                break;
+        }
+
+        return Capitalize(model.name);
+    }
+
+    #endregion
 }
