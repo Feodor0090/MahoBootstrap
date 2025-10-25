@@ -8,6 +8,7 @@ public sealed class MethodModel : CodeModel
     public readonly string returnType;
     public readonly string name;
     public readonly MemberType type;
+    public ClassModel? owner;
 
     public MethodModel(MethodPrototype mp) : base(mp)
     {

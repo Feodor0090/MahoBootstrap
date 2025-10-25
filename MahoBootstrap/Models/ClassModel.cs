@@ -34,7 +34,15 @@ public sealed class ClassModel : IEquatable<ClassModel>
         parent = cp.parent == "java.lang.Object" ? null : cp.parent;
         implements = [..cp.implements];
         ctors = [..cp.constructors.Select(c => new CtorModel(c))];
-        methods = [..cp.methods.Select(c => new MethodModel(c))];
+        methods =
+        [
+            ..cp.methods.Select(c =>
+            {
+                var mm = new MethodModel(c);
+                mm.owner = this;
+                return mm;
+            })
+        ];
         fields = [..cp.fields.Where(c => ConstModel.GetConstType(c) == null).Select(c => new FieldModel(c))];
         consts = [..cp.fields.Where(c => ConstModel.GetConstType(c) != null).Select(c => new ConstModel(c))];
     }
@@ -91,7 +99,14 @@ public sealed class ClassModel : IEquatable<ClassModel>
         fields = MergeSimple(class1.fields, class2.fields);
         consts = MergeSimple(class1.consts, class2.consts);
         ctors = MergeCtors(class1.ctors, class2.ctors);
-        methods = MergeMethods(class1.methods, class2.methods);
+        methods =
+        [
+            ..MergeMethods(class1.methods, class2.methods).Select(x =>
+            {
+                x.owner = this;
+                return x;
+            })
+        ];
     }
 
 
