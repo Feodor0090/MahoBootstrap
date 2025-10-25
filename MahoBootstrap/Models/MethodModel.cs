@@ -89,16 +89,36 @@ public sealed class MethodModel : CodeModel
         return true;
     }
 
-    public string dotnetMethodType =>
-        type switch
+    public string dotnetMethodType
+    {
+        get
         {
-            MemberType.Regular => "virtual",
-            MemberType.Abstract => "abstract",
-            MemberType.Final => "",
-            MemberType.Static => "static",
-            MemberType.Final | MemberType.Static => "static",
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
-        };
+            switch (type)
+            {
+                case MemberType.Regular:
+                    if (owner?.parent != null)
+                    {
+                        if (Program.models.TryGetValue(owner.parent, out var parent))
+                        {
+                            if (parent.methods.Any(x => x.HasSameSignature(this)))
+                            {
+                                return "override";
+                            }
+                        }
+                    }
+                    return "virtual";
+                case MemberType.Abstract:
+                    return "abstract";
+                case MemberType.Final:
+                    return "";
+                case MemberType.Static:
+                case MemberType.Final | MemberType.Static:
+                    return "static";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(type), type, null);
+            }
+        }
+    }
 }
 
 public enum MethodStyle
