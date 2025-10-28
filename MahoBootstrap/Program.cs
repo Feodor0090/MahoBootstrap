@@ -1,4 +1,5 @@
 ﻿using System.Collections.Frozen;
+using ikvm.extensions;
 using MahoBootstrap.Models;
 using MahoBootstrap.Outputs;
 
@@ -98,6 +99,20 @@ internal class Program
         Console.WriteLine("Read ok!");
         Console.WriteLine(
             $"Total: {classes.Count} classes, {classes.Values.Sum(x => x.methods.Length)} methods, {classes.Values.Sum(x => x.consts.Length)} constants, {classes.Values.Sum(x => x.fields.Length)} fields");
+        if (classes.Values.GroupBy(x => x.fullName.hashCode()).Any(x => x.Count() != 1))
+            throw new ArgumentException("Duplicated hash code!");
+
+        int i = classes.Count;
+        foreach (var cls in classes.Values)
+        {
+            Console.CursorLeft = 0;
+            Console.Write($"{i} classes left...      ");
+            LLMTools.Process(cls);
+        }
+
+        Console.CursorLeft = 0;
+        Console.WriteLine("Analysis done!");
+
         models = classes.ToFrozenDictionary();
 
         switch (target)

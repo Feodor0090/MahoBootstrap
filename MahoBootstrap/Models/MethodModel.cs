@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using ikvm.extensions;
 using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
@@ -92,16 +93,19 @@ public sealed class MethodModel : CodeModel
         return true;
     }
 
-    public override int GetHashCode()
+    public int StableHashCode
     {
-        int c = 0;
-
-        foreach (var arg in arguments)
+        get
         {
-            c = c ^ arg.type.GetHashCode();
-        }
+            int c = 0;
 
-        return name.GetHashCode() ^ returnType.GetHashCode() ^ c;
+            foreach (var arg in arguments)
+            {
+                c = c ^ arg.type.hashCode();
+            }
+
+            return name.hashCode() ^ returnType.hashCode() ^ c;
+        }
     }
 
     public string dotnetMethodType
