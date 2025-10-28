@@ -1,3 +1,5 @@
+using AngleSharp.Dom;
+
 namespace MahoBootstrap.Prototypes;
 
 public class MethodPrototype : ICodePrototype
@@ -8,4 +10,5 @@ public class MethodPrototype : ICodePrototype
     public string returnType;
     public List<string> throws { get; } = new();
     public List<(string type, string name)> args { get; } = new();
+    public List<IElement> relevantDocPart { get; } = new();
 }

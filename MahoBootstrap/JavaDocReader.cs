@@ -44,14 +44,6 @@ public static class JavaDocReader
         return cp;
     }
 
-    public static void DumpText(string document, string name)
-    {
-        Directory.CreateDirectory("/tmp/mbs/consts");
-        IDocument doc = service.ParseDocument(document);
-        File.WriteAllLines($"/tmp/mbs/consts/{name}.txt",
-            doc.Body!.TextContent.Split('\n').Where(x => !string.IsNullOrEmpty(x)));
-    }
-
     public static FrozenDictionary<string, FrozenDictionary<string, string>> ExtractConstants(string constsDocument)
     {
         Dictionary<string, FrozenDictionary<string, string>> d = new();
@@ -152,10 +144,21 @@ public static class JavaDocReader
     private static void ParseMethods(ClassPrototype cp, List<IElement> list)
     {
         var en = list.GetEnumerator();
+        List<IElement> relevant = new List<IElement>();
         while (true)
         {
-            if (SkipToNextDefinition(ref en))
-                return;
+            do
+            {
+                if (!en.MoveNext())
+                    return;
+            } while (en.Current.TagName != "H3");
+
+            do
+            {
+                if (!en.MoveNext())
+                    return;
+                relevant.Add(en.Current); // this will skip <h3> and add anything after it including <pre>
+            } while (en.Current.TagName != "PRE");
 
             var defTokens = ExtractDeclTokens(cp.pkg, en.Current);
 
@@ -184,6 +187,22 @@ public static class JavaDocReader
             ParseMethodThrows(defTokens, mp);
 
             cp.methods.Add(mp);
+
+            while (true)
+            {
+                if (!en.MoveNext())
+                {
+                    mp.relevantDocPart.AddRange(relevant);
+                    return;
+                }
+
+                if(en.Current.TagName == "HR")
+                    break;
+                relevant.Add(en.Current);
+            }
+
+            mp.relevantDocPart.AddRange(relevant);
+            relevant.Clear();
         }
     }
 

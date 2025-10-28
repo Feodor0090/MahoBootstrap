@@ -77,13 +77,6 @@ internal class Program
                         if (consts.TryGetValue(modelNext.fullName, out var map))
                             JavaDocReader.ApplyConstants(modelNext, map);
 
-                        if (modelNext.consts.Length != 0)
-                        {
-                            JavaDocReader.DumpText(text, modelNext.name);
-                            File.WriteAllText($"/tmp/mbs/consts/{modelNext.name}_list.txt",
-                                string.Join(", ", modelNext.consts.Select(x => x.name)));
-                        }
-
                         if (!classes.TryAdd(proto.fullName, modelNext))
                         {
                             var modelPrev = classes[proto.fullName];

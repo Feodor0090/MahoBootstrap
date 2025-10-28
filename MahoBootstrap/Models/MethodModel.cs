@@ -9,21 +9,24 @@ public sealed class MethodModel : CodeModel
     public readonly string name;
     public readonly MemberType type;
     public ClassModel? owner;
+    public readonly string documentation;
 
     public MethodModel(MethodPrototype mp) : base(mp)
     {
         returnType = mp.returnType;
         name = mp.name;
         type = mp.type;
+        documentation = string.Join('\n', mp.relevantDocPart.Select(x => x.OuterHtml));
     }
 
     public MethodModel(MemberAccess access, ImmutableArray<string> throws, ImmutableArray<CodeArgument> arguments,
-        string returnType, string name, MemberType type) :
+        string returnType, string name, MemberType type, string docs) :
         base(access, throws, arguments)
     {
         this.returnType = returnType;
         this.name = name;
         this.type = type;
+        this.documentation = docs;
     }
 
     public MethodStyle MethodStyle
@@ -89,6 +92,18 @@ public sealed class MethodModel : CodeModel
         return true;
     }
 
+    public override int GetHashCode()
+    {
+        int c = 0;
+
+        foreach (var arg in arguments)
+        {
+            c = c ^ arg.type.GetHashCode();
+        }
+
+        return name.GetHashCode() ^ returnType.GetHashCode() ^ c;
+    }
+
     public string dotnetMethodType
     {
         get
@@ -106,6 +121,7 @@ public sealed class MethodModel : CodeModel
                             }
                         }
                     }
+
                     return "virtual";
                 case MemberType.Abstract:
                     return "abstract";

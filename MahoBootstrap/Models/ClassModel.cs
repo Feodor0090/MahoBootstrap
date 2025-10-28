@@ -218,7 +218,7 @@ public sealed class ClassModel : IEquatable<ClassModel>
 
                     // merging
                     list[i] = new MethodModel(li.access, MergeSimple(li.throws, ri.throws), li.arguments, li.returnType,
-                        li.name, li.type);
+                        li.name, li.type, li.documentation);
                     found = true;
                     break;
                 }
