@@ -18,6 +18,36 @@ public static class LLMTools
                                         "Ignore method overriding. Ignore docs inherition. Ignore \"since\" remark. Use <see cref=\"\"> to mention other class members and other types.\n\n" +
                                         "Output only new documentation comment. Do *not* wrap your answer in code block.";
 
+    public static readonly (string, string)[] xmldocExamples =
+    [
+        (
+            "<pre>\n\npublic static <a href=\"../../../javax/microedition/rms/RecordStore.html\" title=\"class in javax.microedition.rms\">RecordStore</a> " +
+            "<b>openRecordStore</b>(<a href=\"../../../java/lang/String.html\" title=\"class in java.lang\">String</a>&nbsp;recordStoreName,\n" +
+            "                                          boolean&nbsp;createIfNecessary)\n" +
+            "                                   throws <a href=\"../../../javax/microedition/rms/RecordStoreException.html\" title=\"class in javax.microedition.rms\">RecordStoreException</a>,\n" +
+            "                                          <a href=\"../../../javax/microedition/rms/RecordStoreFullException.html\" title=\"class in javax.microedition.rms\">RecordStoreFullException</a>,\n" +
+            "                                          <a href=\"../../../javax/microedition/rms/RecordStoreNotFoundException.html\" title=\"class in javax.microedition.rms\">RecordStoreNotFoundException</a></pre>\n<dl>\n\n" +
+            "<dd>Open (and possibly create) a record store associated with the\n given MIDlet suite. If this method is called by a MIDlet when\n the record store is already open by a MIDlet in the MIDlet suite,\n" +
+            " this method returns a reference to the same RecordStore object.\n\n<p>\n\n</p></dd><dd><dl>\n\n<dt><b>Parameters:</b></dt><dd><code>recordStoreName</code> - the MIDlet suite unique name for the\n" +
+            "          record store, consisting of between one and 32 Unicode\n          characters inclusive.</dd><dd><code>createIfNecessary</code> - if true, the record store will be\n" +
+            "\t\tcreated if necessary\n</dd><dt><b>Returns:</b></dt><dd><code>RecordStore</code> object for the record store\n</dd><dt><b>Throws:</b>\n" +
+            "</dt><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreException.html\" title=\"class in javax.microedition.rms\">RecordStoreException</a></code> - if a record store-related\n" +
+            "\t\texception occurred\n</dd><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreNotFoundException.html\" title=\"class in javax.microedition.rms\">RecordStoreNotFoundException</a></code> - if the record store" +
+            "\n\t\tcould not be found\n</dd><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreFullException.html\" title=\"class in javax.microedition.rms\">RecordStoreFullException</a></code> - if the operation cannot be" +
+            "\n\t\tcompleted because the record store is full\n</dd><dd><code><a href=\"../../../java/lang/IllegalArgumentException.html\" title=\"class in java.lang\">IllegalArgumentException</a></code> - if\n" +
+            "          recordStoreName is invalid</dd></dl>\n\n</dd>\n\n</dl>",
+            "/// <summary>\n/// Open (and possibly create) a record store associated with the given <see cref=\"javax.microedition.midlet.MIDlet\"/> suite.\n" +
+            "/// If this method is called by a <see cref=\"javax.microedition.midlet.MIDlet\"/> when the record store is already open by a <see cref=\"javax.microedition.midlet.MIDlet\"/> in the <see cref=\"javax.microedition.midlet.MIDlet\"/> suite,\n" +
+            "/// this method returns a reference to the same <see cref=\"javax.microedition.rms.RecordStore\"/> object.\n" +
+            "/// </summary>\n/// <param name=\"recordStoreName\">The <see cref=\"javax.microedition.midlet.MIDlet\"/> suite unique name for the record store, consisting of between one and 32 Unicode characters inclusive.</param>\n" +
+            "/// <param name=\"createIfNecessary\">If <see langword=\"true\"/>, the record store will be created if necessary.</param>\n" +
+            "/// <returns><see cref=\"javax.microedition.rms.RecordStore\"/> object for the record store.</returns>\n" +
+            "/// <exception cref=\"javax.microedition.rms.RecordStoreException\">If a record store-related exception occurred.</exception>\n" +
+            "/// <exception cref=\"javax.microedition.rms.RecordStoreNotFoundException\">If the record store could not be found.</exception>\n" +
+            "/// <exception cref=\"javax.microedition.rms.RecordStoreFullException\">If the operation cannot be completed because the record store is full.</exception>\n" +
+            "/// <exception cref=\"java.lang.IllegalArgumentException\">If <paramref name=\"recordStoreName\"/> is invalid.</exception>")
+    ];
+
     public const string IMPL_PROMPT = "Here is a fragment of javadoc. Analyze it.\n\n" +
                                       "You must understand, does this method do anything when called as is or is its implementation empty - " +
                                       "sometimes programmer may need to override some methods to implement callbacks, etc. Then, understand - may calling this method change object's state? " +
@@ -99,7 +129,7 @@ public static class LLMTools
             Func<MethodModel, string> printer = static x => x.documentation;
             Func<string, string> parser = static x => x;
             mad.javadoc = GetAuto(JAVADOC_PROMPT, method, printer, parser, ThinkValue.Medium);
-            mad.xmldoc = GetAuto(XMLDOC_PROMPT, method, printer, parser, ThinkValue.Medium);
+            mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, printer, parser, ThinkValue.Medium);
             mad.effect = GetAuto(IMPL_PROMPT, method, printer, x =>
             {
                 var l = x.ToLower().Trim();
@@ -128,8 +158,6 @@ public static class LLMTools
 
             method.analysisData = mad;
         }
-
-
     }
 
     public static void ClearCache()
@@ -182,6 +210,7 @@ public static class LLMTools
             messages.Add(new Message(ChatRole.User, example.Item1));
             messages.Add(new Message(ChatRole.Assistant, example.Item2));
         }
+
         messages.Add(new Message(ChatRole.User, data));
 
         var request = new ChatRequest
