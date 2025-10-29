@@ -18,12 +18,14 @@ public static class LLMTools
                                         "Ignore method overriding. Ignore docs inherition. Ignore \"since\" remark. Use <see cref=\"\"> to mention other class members and other types.\n\n" +
                                         "Output only new documentation comment. Do *not* wrap your answer in code block.";
 
-    public const string EMPTY_IMPL_PROMPT = "Here is a fragment of javadoc. Analyze it.\n\n" +
-                                            "You must understand, does this method do anything when called as is or is its implementation empty - " +
-                                            "sometimes programmer may need to override some methods to implement callbacks, etc. " +
-                                            "Throwing exceptions, returning values are examples of work. " +
-                                            "Answer \"does nothing\" only when documentation states that calling this method is no-op and has no sideeffects at all.\n\n" +
-                                            "Answer with one phrase: either \"Does something\" or \"Does nothing\".";
+    public const string IMPL_PROMPT = "Here is a fragment of javadoc. Analyze it.\n\n" +
+                                      "You must understand, does this method do anything when called as is or is its implementation empty - " +
+                                      "sometimes programmer may need to override some methods to implement callbacks, etc. Then, understand - may calling this method change object's state? " +
+                                      "Always throwing exceptions, returning values (without modifing them) are examples of \"pure\" work.\n\n" +
+                                      "Answer \"does nothing\" if documentation states that this method does nothing when called (no-op).\n" +
+                                      "Answer \"pure method\" if documentation states that method does something but has *no* sideeffects: it just returns a value, checks something, throws, etc.\n" +
+                                      "Answer \"has side effects\" in other cases.\n\n" +
+                                      "Answer with one phrase: \"Has side effects\", \"Pure method\" or \"Does nothing\". Do not add anything else to answer.";
 
     public const string ALWAYS_THROWS_PROMPT = "Here is a fragment of javadoc. Analyze it. " +
                                                "You must understand: does this method *always* throw exception when called or not?\n\n" +
@@ -31,7 +33,31 @@ public static class LLMTools
                                                "If yes, print full exception type as an answer, for example, \"java.pkg.InvalidSomethingException\".\n\n" +
                                                "Do not provide additional information to user. Do not wrap your answer in code or formatting blocks.";
 
-    public const string LIST_PROMPT = "";
+    public const string LIST_PROMPT = "Here is a javadoc for a class. Analyze it. " +
+                                      "Does it look like a container for some child items? " +
+                                      "If no, answer with one phrase: \"Not a list\".\n\n" +
+                                      "If it seems so, find method signatures that allow to interact with object's children.\n\n" +
+                                      "Answer in the following JSON format:\n```\n" +
+                                      "[\n{\n  \"type\": \"pkg.Class1\",\n" +
+                                      "  \"operation1\": \"Full.Return.Type.Signature fullMethodSignature(Full.Argument.Type arg1name, Another.Full.Argument.Type arg2)\",\n" +
+                                      "  \"operation2\": \"void insert(int position, pkg.Class1 child)\",\n" +
+                                      "  \"operation3\": ...,\n  ...\n},\n{ ... }\n]" +
+                                      "\n```\n\n" +
+                                      "Follow it exactly: the code block, the array, an object declaration for each list \"inside\".\n\n" +
+                                      "Find methods for following operations:\n" +
+                                      "- Getting a child by index (`get`)\n" +
+                                      "- Setting a child by index (`set`)\n" +
+                                      "- Adding new child to the end of list (`add`)\n" +
+                                      "- Insert after index (`insert`)\n" +
+                                      "- Remove at index (`remove`)\n" +
+                                      "- Remove all (`clear`)\n" +
+                                      "- Get enumerator to enumerate all children (`enum`) \n" +
+                                      "- Get count (`count`)\n\n" +
+                                      "If no method found for an operation, it is valid, write as `\"operation\": null`. " +
+                                      "If you can't find most of methods including important ones (like `get`), may be, this class is not a list?\n\n" +
+                                      "In the case when there are multiple methods for the same operation, look at accepted/returned types. Non-matching ones are helpers, ignore them.\n\n" +
+                                      "In the case when class operates a list of tuples (`set` accepts multiple values, there are separate getters for each one), threat the class as *not a list*.\n\n" +
+                                      "In the case when class clearly keeps multiple child lists of different types, repeat for each one - in answer example i left a declaration for multiple lists.\n\n";
 
     public static string ComposeEnumPrompt(List<string> constNames)
     {
@@ -70,21 +96,40 @@ public static class LLMTools
         foreach (var method in model.methods)
         {
             MethodAnalysisData mad = new();
-            mad.javadoc = GetAuto(JAVADOC_PROMPT, method, static x => x.StableHashCode, static x => x.documentation,
-                ThinkValue.Medium);
-            mad.xmldoc = GetAuto(XMLDOC_PROMPT, method, static x => x.StableHashCode, static x => x.documentation,
-                ThinkValue.Medium);
-            mad.empty = GetAuto(EMPTY_IMPL_PROMPT, method, static x => x.StableHashCode, static x => x.documentation,
-                    ThinkValue.Medium).ToLower()
-                .Contains("nothing");
+            Func<MethodModel, string> printer = static x => x.documentation;
+            Func<string, string> parser = static x => x;
+            mad.javadoc = GetAuto(JAVADOC_PROMPT, method, printer, parser, ThinkValue.Medium);
+            mad.xmldoc = GetAuto(XMLDOC_PROMPT, method, printer, parser, ThinkValue.Medium);
+            mad.effect = GetAuto(IMPL_PROMPT, method, printer, x =>
+            {
+                var l = x.ToLower().Trim();
+                switch (l)
+                {
+                    case "does nothing":
+                        return MethodEffect.Empty;
+                    case "pure method":
+                        return MethodEffect.Pure;
+                    case "has side effects":
+                        return MethodEffect.HasSideEffects;
+                    default:
+                        throw new ArgumentException();
+                }
+            }, ThinkValue.Medium);
 
-            var thr = GetAuto(ALWAYS_THROWS_PROMPT, method, static x => x.StableHashCode, static x => x.documentation,
-                ThinkValue.Medium);
-            if (thr.ToLower().Contains("regular method"))
-                mad.alwaysThrows = null;
-            else
-                mad.alwaysThrows = thr;
+            mad.alwaysThrows = GetAuto(ALWAYS_THROWS_PROMPT, method, printer, x =>
+            {
+                if (x.ToLower().Contains("regular method"))
+                    return (string?)null;
+                var t = x.Trim();
+                if (Program.models.ContainsKey(t))
+                    return t;
+                throw new KeyNotFoundException();
+            }, ThinkValue.Medium);
+
+            method.analysisData = mad;
         }
+
+
     }
 
     public static void ClearCache()
@@ -92,33 +137,52 @@ public static class LLMTools
         Directory.Delete(cacheRoot, true);
     }
 
-    private static string GetAuto<T>(string system, T target, Func<T, int> hash, Func<T, string> printer, ThinkValue tv)
-        where T : notnull
+    private static TOut GetAuto<TIn, TOut>(Prompt prompt, TIn target, Func<TIn, string> printer,
+        Func<string, TOut> parser, ThinkValue tv)
+        where TIn : IHashable
     {
-        string folderName = Path.Combine(cacheRoot, $"{(uint)system.hashCode()}");
-        string cacheFileName = Path.Combine(folderName, $"{hash(target)}");
+        string folderName = Path.Combine(cacheRoot, $"{(uint)prompt.system.hashCode()}");
+        string cacheFileName = Path.Combine(folderName, $"{target.stableHashCode}");
         if (File.Exists($"{cacheFileName}.txt"))
         {
-            return File.ReadAllText($"{cacheFileName}.txt");
+            return parser(File.ReadAllText($"{cacheFileName}.txt"));
         }
 
-        var generated = Request(system, printer(target), tv);
         Directory.CreateDirectory(folderName);
-        File.WriteAllText($"{cacheFileName}.txt", generated.answer);
-        File.WriteAllText($"{cacheFileName}_thinking.txt", generated.thinking);
-        return generated.answer;
+        while (true)
+        {
+            var generated = Request(prompt, printer(target), tv);
+            File.WriteAllText($"{cacheFileName}_thinking_{DateTime.Now}.txt", generated.thinking);
+            TOut result;
+            try
+            {
+                result = parser(generated.answer);
+            }
+            catch
+            {
+                continue;
+            }
+
+            File.WriteAllText($"{cacheFileName}.txt", generated.answer);
+            return result;
+        }
     }
 
-    private static (string thinking, string answer) Request(string system, string data, ThinkValue tv)
+    private static (string thinking, string answer) Request(Prompt prompt, string data, ThinkValue tv)
     {
         var ollama = new OllamaApiClient(new Uri("http://127.0.0.1:11434"));
         ollama.SelectedModel = "gpt-oss:20b";
 
         var messages = new List<Message>
         {
-            new Message(ChatRole.System, system),
-            new Message(ChatRole.User, data)
+            new Message(ChatRole.System, prompt.system)
         };
+        foreach (var example in prompt.examples)
+        {
+            messages.Add(new Message(ChatRole.User, example.Item1));
+            messages.Add(new Message(ChatRole.Assistant, example.Item2));
+        }
+        messages.Add(new Message(ChatRole.User, data));
 
         var request = new ChatRequest
         {

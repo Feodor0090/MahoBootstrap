@@ -4,13 +4,15 @@ using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
 
-public sealed class MethodModel : CodeModel
+public sealed class MethodModel : CodeModel, IHashable
 {
     public readonly string returnType;
     public readonly string name;
     public readonly MemberType type;
-    public ClassModel? owner;
     public readonly string documentation;
+
+    public ClassModel? owner;
+    public MethodAnalysisData? analysisData;
 
     public MethodModel(MethodPrototype mp) : base(mp)
     {
@@ -93,7 +95,7 @@ public sealed class MethodModel : CodeModel
         return true;
     }
 
-    public int StableHashCode
+    public int stableHashCode
     {
         get
         {

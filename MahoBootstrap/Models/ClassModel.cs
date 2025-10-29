@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
+using ikvm.extensions;
 using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
 
-public sealed class ClassModel : IEquatable<ClassModel>
+public sealed class ClassModel : IEquatable<ClassModel>, IHashable
 {
     /// <summary>
     /// Where this class was read? Null if merged/generated.
@@ -230,4 +231,6 @@ public sealed class ClassModel : IEquatable<ClassModel>
 
         return [..list];
     }
+
+    public int stableHashCode => fullName.hashCode();
 }
