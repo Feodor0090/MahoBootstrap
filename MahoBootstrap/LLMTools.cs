@@ -37,9 +37,11 @@ public static class LLMTools
             "\n\t\tcompleted because the record store is full\n</dd><dd><code><a href=\"../../../java/lang/IllegalArgumentException.html\" title=\"class in java.lang\">IllegalArgumentException</a></code> - if\n" +
             "          recordStoreName is invalid</dd></dl>\n\n</dd>\n\n</dl>",
             "/// <summary>\n/// Open (and possibly create) a record store associated with the given <see cref=\"javax.microedition.midlet.MIDlet\"/> suite.\n" +
-            "/// If this method is called by a <see cref=\"javax.microedition.midlet.MIDlet\"/> when the record store is already open by a <see cref=\"javax.microedition.midlet.MIDlet\"/> in the <see cref=\"javax.microedition.midlet.MIDlet\"/> suite,\n" +
+            "/// If this method is called by a <see cref=\"javax.microedition.midlet.MIDlet\"/> when the record store is already open by a " +
+            "<see cref=\"javax.microedition.midlet.MIDlet\"/> in the <see cref=\"javax.microedition.midlet.MIDlet\"/> suite,\n" +
             "/// this method returns a reference to the same <see cref=\"javax.microedition.rms.RecordStore\"/> object.\n" +
-            "/// </summary>\n/// <param name=\"recordStoreName\">The <see cref=\"javax.microedition.midlet.MIDlet\"/> suite unique name for the record store, consisting of between one and 32 Unicode characters inclusive.</param>\n" +
+            "/// </summary>\n/// <param name=\"recordStoreName\">The <see cref=\"javax.microedition.midlet.MIDlet\"/> " +
+            "suite unique name for the record store, consisting of between one and 32 Unicode characters inclusive.</param>\n" +
             "/// <param name=\"createIfNecessary\">If <see langword=\"true\"/>, the record store will be created if necessary.</param>\n" +
             "/// <returns><see cref=\"javax.microedition.rms.RecordStore\"/> object for the record store.</returns>\n" +
             "/// <exception cref=\"javax.microedition.rms.RecordStoreException\">If a record store-related exception occurred.</exception>\n" +
@@ -88,6 +90,69 @@ public static class LLMTools
                                       "In the case when there are multiple methods for the same operation, look at accepted/returned types. Non-matching ones are helpers, ignore them.\n\n" +
                                       "In the case when class operates a list of tuples (`set` accepts multiple values, there are separate getters for each one), threat the class as *not a list*.\n\n" +
                                       "In the case when class clearly keeps multiple child lists of different types, repeat for each one - in answer example i left a declaration for multiple lists.\n\n";
+
+    public const string NULLABLE_PROMPT = "Here is a javadoc for a method in a class. Analyze it. " +
+                                          "For each parameter and return type, understand, can it accept/return null values?\n" +
+                                          "- Threat `void` as never null.\n" +
+                                          "- Threat promitive types (i.e. integers, chars) as never null.\n" +
+                                          "- For reference types, including boxed primitives and arrays, " +
+                                          "look at defined constrains in method description and thrown exceptions: method may block invalid values using exceptions.\n\n" +
+                                          "Answer in following format:\n```\n{\n\t\"return\": true,\n\t\"param1\": false,\n\t\"param2\": true,\n\t...\n}\n```\n\n" +
+                                          "...where \"true\" is \"parameter accepts null or retuned value can be null\", \"false\" otherwise.\n" +
+                                          "Follow the format exactly, i.e. code block with json object. For parameter key names, use parameter's names from documentation.";
+
+    public static readonly (string, string)[] nullableExamples =
+    [
+        ("<pre>public int <b>getIndexCount</b>()</pre>\n<dl>\n<dd><span class=\"new\">Returns the number of indices in this buffer.\n" +
+         " This many indices will be returned in a <code>getIndices</code>\n call.  " +
+         "The number of indices returned depends on the type of\n low-level rendering primitives in the buffer: Currently, only\n " +
+         "triangles are supported, and there are three indices per\n triangle. Triangles are counted individually, disregarding\n " +
+         "triangle strips.</span>\n\n <p class=\"new\">Note that implementations are allowed to\n optimize the index data internally. " +
+         "Different implementations\n may therefore report slightly different index counts for the\n same set of input primitives.</p>\n" +
+         "<p>\n</p></dd><dd><dl>\n\n<dt><b>Returns:</b></dt><dd><span class=\"new\">the number of indices</span></dd><dt><b>Since:</b></dt>\n  " +
+         "<dd><span class=\"new\">M3G 1.1</span></dd>\n<dt><b>See Also:</b></dt><dd>" +
+         "<a href=\"../../../javax/microedition/m3g/IndexBuffer.html#getIndices(int[])\">" +
+         "<code><span class=\"new\">getIndices</span></code></a></dd></dl>\n</dd>\n</dl>",
+            "```json\n{\n    \"return\": false\n}\n```"),
+        ("<pre>\n\npublic <a href=\"../../../java/lang/String.html\" title=\"class in java.lang\">String</a> <b>getType</b>()</pre>\n<dl>\n\n" +
+         "<dd>Returns the type of content that the resource connected to is\n providing.  For instance, if the connection is via HTTP, then\n" +
+         " the value of the <code>content-type</code> header field is returned.\n\n<p>\n\n</p></dd><dd><dl>\n\n</dl>\n\n</dd>\n\n<dd><dl>\n\n\n" +
+         "<dt><b>Returns:</b></dt><dd>the content type of the resource that the URL references,\n" +
+         "          or <code>null</code> if not known.</dd></dl>\n\n</dd>\n\n</dl>",
+            "```json\n{\n  \"return\": true\n}\n```"),
+        ("<pre>public void <b>getBoneTransform</b>" +
+         "(<a href=\"../../../javax/microedition/m3g/Node.html\" title=\"class in javax.microedition.m3g\">Node</a>&nbsp;bone,\n" +
+         "                             <a href=\"../../../javax/microedition/m3g/Transform.html\" title=\"class in javax.microedition.m3g\">" +
+         "Transform</a>&nbsp;transform)</pre>\n<dl>\n<dd><span class=\"new\">Returns the at-rest transformation for a bone\n node.  " +
+         "This is the transformation stored in <code>addTransform</code>\n as described in the documentation there.</span>\n\n " +
+         "<p class=\"new\">If the given node is in the skeleton group of\n this Mesh, but has no vertices associated with it according to\n " +
+         "<code>getBoneVertices</code>, the returned transformation is\n undefined.</p>\n<p>\n</p></dd><dd><dl>\n<dt><b>Parameters:</b></dt>" +
+         "<dd><code>bone</code> - <span class=\"new\">the bone node</span></dd><dd><code>transform</code> - <span class=\"new\">" +
+         "the Transform object to\n        receive the bone transformation</span>\n</dd><dt><b>Throws:</b>\n</dt>" +
+         "<dd><code>java.lang.NullPointerException</code> - <span class=\"new\">if <code>bone</code>\n         is null</span>\n</dd>" +
+         "<dd><code>java.lang.NullPointerException</code> - <span class=\"new\">if <code>transform</code>\n         is null</span>\n</dd>" +
+         "<dd><code>java.lang.IllegalArgumentException</code> - <span class=\"new\">if <code>bone</code>\n         " +
+         "is not in the skeleton group of this mesh</span></dd><dt><b>Since:</b></dt>\n  <dd><span class=\"new\">M3G 1.1</span></dd>\n" +
+         "<dt><b>See Also:</b></dt><dd><a href=\"../../../javax/microedition/m3g/SkinnedMesh.html#getBoneVertices(javax.microedition.m3g.Node, " +
+         "int[], float[])\"><code><span class=\"new\">getBoneVertices</span></code></a>, \n" +
+         "<a href=\"../../../javax/microedition/m3g/SkinnedMesh.html#addTransform(javax.microedition.m3g.Node, int, int, int)\">" +
+         "<code><span class=\"new\">addTransform</span></code></a></dd></dl>\n</dd>\n</dl>",
+            "```json\n{\n    \"return\": false,\n    \"bone\": false,\n    \"transform\": false\n}\n```"),
+        ("<pre>\n\npublic <a href=\"../../../java/lang/String.html\" title=\"class in java.lang\">String</a> <b>getContentType</b>()</pre>\n" +
+         "<dl>\n\n<dd>Get the content type of the media that's\n being played back by this <code>Player</code>.\n <p>\n See " +
+         "<a href=\"Manager.html#content-type\">content type</a>\n for the syntax of the content type returned.\n\n</p>" +
+         "<p>\n\n</p></dd><dd><dl>\n\n</dl>\n\n</dd>\n\n<dd><dl>\n\n\n<dt><b>Returns:</b></dt>" +
+         "<dd>The content type being played back by this \n <code>Player</code>.\n</dd><dt><b>Throws:</b>\n</dt>" +
+         "<dd><code><a href=\"../../../java/lang/IllegalStateException.html\" title=\"class in java.lang\">IllegalStateException</a>" +
+         "</code> - Thrown if the <code>Player</code>\n is in the <i>UNREALIZED</i> or <i>CLOSED</i> state.</dd></dl>\n\n</dd>\n\n</dl>",
+            "```json\n{\n    \"return\": false\n}\n```"),
+        ("<pre>public void <b>setPayloadText</b>(java.lang.String&nbsp;data)</pre>\n<dl>\n<dd>Sets the payload data of this message. " +
+         "The payload data may be <code>null</code>.\n<p>\n</p></dd><dd><dl>\n</dl>\n</dd>\n<dd><dl>\n<dt><b>Parameters:</b></dt>" +
+         "<dd><code>data</code> - payload data as a <code>String</code></dd><dt><b>See Also:</b></dt>" +
+         "<dd><a href=\"../../../javax/wireless/messaging/TextMessage.html#getPayloadText()\"><code>getPayloadText()</code>" +
+         "</a></dd></dl>\n</dd>\n</dl>",
+            "```json\n{\n    \"return\": false,\n    \"data\": true\n}\n```\n")
+    ];
 
     public static string ComposeEnumPrompt(List<string> constNames)
     {
@@ -156,6 +221,11 @@ public static class LLMTools
                 throw new KeyNotFoundException();
             }, ThinkValue.Medium);
 
+            mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, printer, x =>
+            {
+                //TODO parse json
+                return new Dictionary<string, bool>();
+            }, ThinkValue.Medium);
             method.analysisData = mad;
         }
     }
