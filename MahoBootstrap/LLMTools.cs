@@ -1,6 +1,7 @@
 using System.Text;
 using ikvm.extensions;
 using MahoBootstrap.Models;
+using Newtonsoft.Json;
 using OllamaSharp;
 using OllamaSharp.Models.Chat;
 
@@ -178,23 +179,24 @@ public static class LLMTools
                $"3) Do not additional info and mapping of values.\n\n" +
                $"Strictly follow an example:\n```\n" +
                $"exclusive enum ImageType {{ PNG, JPEG, BMP }}\nAccepted in methods: decodeImage, encodeImage\nReturned by: getImageFormat\n\n" +
-               $"exclusive enum ImageDepth {{ DEPTH_16B, DEPTH_24B, DEPTH_32B }}\nUsed in methods: encodeImage\nReturned by: -\n\n" +
-               $"exclusive enum DrawDepth {{ DEPTH_16B, DEPTH_24B }}\nUsed in methods: drawPixels\nReturned by: -\n\n" +
-               $"flags enum CoderHints {{ PREFER_QUALITY, DITHER }}\nUsed in methods: <constructor>\nReturned by: getCoderHints\n\n" +
+               $"exclusive enum ImageDepth {{ DEPTH_16B, DEPTH_24B, DEPTH_32B }}\nAccepted in methods: encodeImage\nReturned by: -\n\n" +
+               $"exclusive enum DrawDepth {{ DEPTH_16B, DEPTH_24B }}\nAccepted in methods: drawPixels\nReturned by: -\n\n" +
+               $"flags enum CoderHints {{ PREFER_QUALITY, DITHER }}\nAccepted in methods: <constructor>\nReturned by: getCoderHints\n\n" +
                $"Could not group: MAX_WIDTH, MAX_HEIGHT\n```\n";
     }
 
-    public const string cacheRoot = "/home/ansel/mbs_cache";
-
     public static void Process(ClassModel model)
     {
+        ThinkValue fast = new ThinkValue(true);// ThinkValue.Medium; for GPT-OSS
+        ThinkValue slow = new ThinkValue(true);// ThinkValue.High;
+
         foreach (var method in model.methods)
         {
             MethodAnalysisData mad = new();
             Func<MethodModel, string> printer = static x => x.documentation;
             Func<string, string> parser = static x => x;
-            mad.javadoc = GetAuto(JAVADOC_PROMPT, method, printer, parser, ThinkValue.Medium);
-            mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, printer, parser, ThinkValue.Medium);
+            mad.javadoc = GetAuto(JAVADOC_PROMPT, method, printer, parser, fast);
+            mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, printer, parser, fast);
             mad.effect = GetAuto(IMPL_PROMPT, method, printer, x =>
             {
                 var l = x.ToLower().Trim();
@@ -209,7 +211,7 @@ public static class LLMTools
                     default:
                         throw new ArgumentException();
                 }
-            }, ThinkValue.Medium);
+            }, fast);
 
             mad.alwaysThrows = GetAuto(ALWAYS_THROWS_PROMPT, method, printer, x =>
             {
@@ -219,27 +221,44 @@ public static class LLMTools
                 if (Program.models.ContainsKey(t))
                     return t;
                 throw new KeyNotFoundException();
-            }, ThinkValue.Medium);
+            }, fast);
 
             mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, printer, x =>
             {
-                //TODO parse json
-                return new Dictionary<string, bool>();
-            }, ThinkValue.Medium);
+                var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
+                return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
+            }, fast);
             method.analysisData = mad;
+        }
+
+        ClassAnalysisData cad = new();
+        cad.listAPI = GetAuto(LIST_PROMPT, model, x => x.documentation, x =>
+        {
+            var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
+            return JsonConvert.DeserializeObject<ListAPI[]>(string.Join("", lines))!;
+        }, slow);
+        if (model.consts.Any())
+        {
+            (cad.groupedEnums, cad.keptConsts) = GetAuto(ComposeEnumPrompt(model.consts.Select(x => x.name).ToList()),
+                model, x => x.documentation, ParseEnumProposal, slow);
+        }
+        else
+        {
+            cad.groupedEnums = [];
+            cad.keptConsts = [];
         }
     }
 
     public static void ClearCache()
     {
-        Directory.Delete(cacheRoot, true);
+        Directory.Delete(Program.LLM_CACHE_ROOT, true);
     }
 
     private static TOut GetAuto<TIn, TOut>(Prompt prompt, TIn target, Func<TIn, string> printer,
         Func<string, TOut> parser, ThinkValue tv)
         where TIn : IHashable
     {
-        string folderName = Path.Combine(cacheRoot, $"{(uint)prompt.system.hashCode()}");
+        string folderName = Path.Combine(Program.LLM_CACHE_ROOT, $"{(uint)prompt.system.hashCode()}");
         string cacheFileName = Path.Combine(folderName, $"{target.stableHashCode}");
         if (File.Exists($"{cacheFileName}.txt"))
         {
@@ -258,6 +277,7 @@ public static class LLMTools
             }
             catch
             {
+                File.WriteAllText($"{cacheFileName}_broken_{DateTime.Now}.txt", generated.answer);
                 continue;
             }
 
@@ -268,8 +288,8 @@ public static class LLMTools
 
     private static (string thinking, string answer) Request(Prompt prompt, string data, ThinkValue tv)
     {
-        var ollama = new OllamaApiClient(new Uri("http://127.0.0.1:11434"));
-        ollama.SelectedModel = "gpt-oss:20b";
+        var ollama = new OllamaApiClient(new Uri(Program.OLLAMA_HOST));
+        ollama.SelectedModel = Program.MODEL;
 
         var messages = new List<Message>
         {
@@ -304,5 +324,92 @@ public static class LLMTools
             return (think.ToString(), final.ToString());
         });
         return chatTask.Result;
+    }
+
+    public static (GroupedEnum[], string[]) ParseEnumProposal(string input)
+    {
+        const string exclusivePrefix = "exclusive enum ";
+        const string flagsPrefix = "flags enum ";
+        const string enumDelimiterStart = "{";
+        const string enumDelimiterEnd = "}";
+        const string acceptedPrefix = "Accepted in methods: ";
+        const string returnedPrefix = "Returned by: ";
+        const string couldNotGroupPrefix = "Could not group: ";
+        const string noneValue = "-";
+        const char itemSeparator = ',';
+
+        var lines = input.Split('\n');
+        var groups = new List<GroupedEnum>();
+        string[] couldNotGroup = Array.Empty<string>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            if (line.StartsWith(exclusivePrefix) || line.StartsWith(flagsPrefix))
+            {
+                bool isFlags = line.StartsWith(flagsPrefix);
+                string prefix = isFlags ? flagsPrefix : exclusivePrefix;
+                int prefixLength = prefix.Length;
+
+                int enumStartIndex = line.IndexOf(enumDelimiterStart, prefixLength);
+                if (enumStartIndex == -1) throw new FormatException("Invalid enum format: missing start delimiter.");
+
+                string name = line.Substring(prefixLength, enumStartIndex - prefixLength).Trim();
+
+                int enumEndIndex = line.IndexOf(enumDelimiterEnd, enumStartIndex + enumDelimiterStart.Length);
+                if (enumEndIndex == -1) throw new FormatException("Invalid enum format: missing end delimiter.");
+
+                string membersStr = line.Substring(enumStartIndex + enumDelimiterStart.Length,
+                    enumEndIndex - (enumStartIndex + enumDelimiterStart.Length)).Trim();
+                string[] members = membersStr.Split(itemSeparator).Select(m => m.Trim())
+                    .Where(m => !string.IsNullOrEmpty(m)).ToArray();
+
+                // Next line: Accepted
+                i++;
+                if (i >= lines.Length) throw new FormatException("Unexpected end of input after enum declaration.");
+                string acceptedLine = lines[i].Trim();
+                if (!acceptedLine.StartsWith(acceptedPrefix))
+                    throw new FormatException("Expected 'Accepted in methods' line.");
+                string acceptedStr = acceptedLine.Substring(acceptedPrefix.Length).Trim();
+                string[] usedIn = acceptedStr == noneValue
+                    ? Array.Empty<string>()
+                    : acceptedStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
+                        .ToArray();
+
+                // Next line: Returned
+                i++;
+                if (i >= lines.Length) throw new FormatException("Unexpected end of input after accepted line.");
+                string returnedLine = lines[i].Trim();
+                if (!returnedLine.StartsWith(returnedPrefix)) throw new FormatException("Expected 'Returned by' line.");
+                string returnedStr = returnedLine.Substring(returnedPrefix.Length).Trim();
+                string[] returnedIn = returnedStr == noneValue
+                    ? Array.Empty<string>()
+                    : returnedStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
+                        .ToArray();
+
+                groups.Add(new GroupedEnum
+                {
+                    flags = isFlags,
+                    name = name,
+                    members = members,
+                    usedInMethods = usedIn,
+                    returnedInMethods = returnedIn
+                });
+            }
+            else if (line.StartsWith(couldNotGroupPrefix))
+            {
+                string cngStr = line.Substring(couldNotGroupPrefix.Length).Trim();
+                couldNotGroup = cngStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
+                    .ToArray();
+            }
+            else
+            {
+                throw new FormatException($"Unexpected line: {line}");
+            }
+        }
+
+        return (groups.ToArray(), couldNotGroup);
     }
 }

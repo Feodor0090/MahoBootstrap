@@ -9,27 +9,34 @@ internal class Program
 {
     public static FrozenDictionary<string, ClassModel> models = null!;
 
+    public const string LLM_CACHE_ROOT = "/home/ansel/mbs_cache";
+    public const string OLLAMA_HOST = "http://127.0.0.1:11434";
+    public const string MODEL = "deepseek-r1:14b";
+    public const string DOCS_REPO = "/home/ansel/repos/j2me/J2ME_Docs/docs";
+    public const string ARMAN_JDL = "/home/ansel/Desktop/javadocs";
+    public const string MIDLET_SHARP_TARGET = "/tmp/mbs/cs";
+
     public static void Main(string[] args)
     {
         string[] docRoots =
         [
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/midp-2.0", // MIDP
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/cldc-1.1", // CLDC
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr135", // MMAPI
-            "/home/ansel/Desktop/javadocs/jsr184", // M3G
-            "/home/ansel/Desktop/javadocs/nokiaui", // NUI
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr211", // Content handler
-            "/home/ansel/Desktop/javadocs/jsr75/file", // File system
-            "/home/ansel/Desktop/javadocs/jsr75/pim", // Data system
-            "/home/ansel/Desktop/javadocs/iapinfo", // AP info
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr82_1.1.1_javadoc", // Bluetooth
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179-1_1-mrel-javadoc", // GPS
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr179_LocationUtil", // GPS Util
-            "/home/ansel/Desktop/javadocs/jsr226", // M2G
+            $"{DOCS_REPO}/midp-2.0", // MIDP
+            $"{DOCS_REPO}/cldc-1.1", // CLDC
+            $"{DOCS_REPO}/jsr135", // MMAPI
+            $"{ARMAN_JDL}/jsr184", // M3G
+            $"{ARMAN_JDL}/nokiaui", // NUI
+            $"{DOCS_REPO}/jsr211", // Content handler
+            $"{ARMAN_JDL}/jsr75/file", // File system
+            $"{ARMAN_JDL}/jsr75/pim", // Data system
+            $"{ARMAN_JDL}/iapinfo", // AP info
+            $"{DOCS_REPO}/jsr82_1.1.1_javadoc", // Bluetooth
+            $"{DOCS_REPO}/jsr179-1_1-mrel-javadoc", // GPS
+            $"{DOCS_REPO}/jsr179_LocationUtil", // GPS Util
+            $"{ARMAN_JDL}/jsr226", // M2G
             //"/home/ansel/Desktop/javadocs/jsr234", // AMMS
-            "/home/ansel/Desktop/javadocs/jsr256", // Sensors
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr177", // SATS
-            "/home/ansel/repos/j2me/J2ME_Docs/docs/jsr205", // SMS
+            $"{ARMAN_JDL}/jsr256", // Sensors
+            $"{DOCS_REPO}/jsr177", // SATS
+            $"{DOCS_REPO}/jsr205", // SMS
         ];
         string target = "ms";
 
@@ -124,8 +131,18 @@ internal class Program
                 new JavaHeadersOutput(classes.ToFrozenDictionary()).Accept("/tmp/mbs/java");
                 break;
             case "ms":
-                new MidletSharpOutput(classes.ToFrozenDictionary()).Accept("/tmp/mbs/cs");
+                new MidletSharpOutput(classes.ToFrozenDictionary()).Accept(MIDLET_SHARP_TARGET);
                 break;
         }
     }
+
+    public static T? GetRandomElement<T>(ICollection<T> collection)
+    {
+        if(collection.Count == 0)
+            return default;
+        var index = Random.Shared.Next(collection.Count);
+        return collection.ElementAt(index);
+    }
+
+
 }

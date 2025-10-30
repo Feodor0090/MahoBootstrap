@@ -20,6 +20,9 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
     public readonly ImmutableArray<MethodModel> methods;
     public readonly ImmutableArray<FieldModel> fields;
     public readonly ImmutableArray<ConstModel> consts;
+    public readonly string documentation;
+
+    public ClassAnalysisData? analysisData;
 
     /// <summary>
     /// Froze prototype to read-only model.
@@ -46,6 +49,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
         ];
         fields = [..cp.fields.Where(c => ConstModel.GetConstType(c) == null).Select(c => new FieldModel(c))];
         consts = [..cp.fields.Where(c => ConstModel.GetConstType(c) != null).Select(c => new ConstModel(c))];
+        documentation = cp.docText;
     }
 
     /// <summary>
@@ -108,6 +112,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
                 return x;
             })
         ];
+        documentation = class1.documentation;
     }
 
 

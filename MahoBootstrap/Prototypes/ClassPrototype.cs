@@ -10,6 +10,7 @@ public class ClassPrototype
     public readonly List<MethodPrototype> methods = new();
     public readonly List<CtorPrototype> constructors = new();
     public readonly List<FieldPrototype> fields = new();
+    public string docText = null!;
 
     public ClassPrototype(ClassType type, string pkg, string name, string? parent)
     {

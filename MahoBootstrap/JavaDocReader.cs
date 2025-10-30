@@ -16,7 +16,9 @@ public static class JavaDocReader
     public static ClassPrototype Parse(string document)
     {
         IDocument doc = service.ParseDocument(document);
-        return Parse(doc.Body!.Children);
+        var cp = Parse(doc.Body!.Children);
+        cp.docText = doc.Body.OuterHtml;
+        return cp;
     }
 
     private static ClassPrototype Parse(IHtmlCollection<IElement> body)
