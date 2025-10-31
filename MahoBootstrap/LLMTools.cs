@@ -221,77 +221,43 @@ public static class LLMTools
 
     public static void Process(ClassModel model)
     {
-        ThinkValue fast = new ThinkValue(true); // ThinkValue.Medium; for GPT-OSS
-        ThinkValue slow = new ThinkValue(true); // ThinkValue.High;
+        ThinkValue fast = ThinkValue.Medium;
+        ThinkValue slow = ThinkValue.High;
 
         foreach (var method in model.methods)
         {
             MethodAnalysisData mad = new();
-            Func<string, string> parser = static x => x;
-            mad.javadoc = GetAuto(new Prompt(JAVADOC_PROMPT, javadocExamples), method, parser, fast);
-            mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, parser, fast);
-            mad.effect = GetAuto(IMPL_PROMPT, method, x =>
-            {
-                var l = x.ToLower().Trim();
-                switch (l)
-                {
-                    case "does nothing":
-                        return MethodEffect.Empty;
-                    case "pure method":
-                        return MethodEffect.Pure;
-                    case "has side effects":
-                        return MethodEffect.HasSideEffects;
-                    default:
-                        throw new ArgumentException();
-                }
-            }, fast);
+            Func<string, string> equalParser = static x => x;
+            mad.javadoc = GetAuto("javadocs", new Prompt(JAVADOC_PROMPT, javadocExamples), method, equalParser, fast);
+            mad.xmldoc = GetAuto("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples), method, equalParser, fast);
+            mad.effect = GetAuto("effects", IMPL_PROMPT, method, ParseMethodEffect, fast);
+            if (method.throws.Length == 0)
+                mad.alwaysThrows = null;
+            else
+                mad.alwaysThrows = GetAuto("throws", ALWAYS_THROWS_PROMPT, method, ParseMethodThrows, fast);
 
-            mad.alwaysThrows = GetAuto(ALWAYS_THROWS_PROMPT, method, x =>
+            if (CantBeNull(method.returnType) && method.arguments.All(x => CantBeNull(x.type)))
             {
-                if (x.ToLower().Contains("regular method"))
-                    return (string?)null;
-                var t = x.Trim();
-                if (Program.models.ContainsKey(t))
-                    return t;
-                throw new KeyNotFoundException();
-            }, fast);
-
-            if (CantBeNull(method.returnType) &&
-                (method.arguments.Length == 0 || method.arguments.All(x => CantBeNull(x.type))))
-            {
-                Dictionary<string, bool> map = new();
-                map["return"] = false;
+                mad.nullability = new Dictionary<string, bool>();
+                mad.nullability["return"] = false;
                 foreach (var arg in method.arguments)
-                {
-                    map[arg.name] = false;
-                }
-
-                mad.nullability = map;
+                    mad.nullability[arg.name] = false;
             }
             else
             {
-                mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, x =>
-                {
-                    var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
-                    return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
-                }, fast);
+                mad.nullability = GetAuto("", new Prompt(NULLABLE_PROMPT, nullableExamples), method,
+                    ParseMethodNullable, fast);
             }
 
             method.analysisData = mad;
         }
 
         ClassAnalysisData cad = new();
-        cad.listAPI = GetAuto(LIST_PROMPT, model, x =>
-        {
-            if (x.Trim().ToLower().Contains("not a list"))
-                return [];
-            var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
-            return JsonConvert.DeserializeObject<ListAPI[]>(string.Join("", lines))!;
-        }, slow);
+        cad.listAPI = GetAuto("lists", LIST_PROMPT, model, ParseListProposal, slow);
         if (model.consts.Any())
         {
-            (cad.groupedEnums, cad.keptConsts) = GetAuto(ComposeEnumPrompt(model.consts.Select(x => x.name).ToList()),
-                model, ParseEnumProposal, slow);
+            var prompt = ComposeEnumPrompt(model.consts.Select(x => x.name).ToList());
+            (cad.groupedEnums, cad.keptConsts) = GetAuto("enums", prompt, model, ParseEnumProposal, slow);
         }
         else
         {
@@ -305,7 +271,8 @@ public static class LLMTools
         Directory.Delete(Program.LLM_CACHE_ROOT, true);
     }
 
-    private static TOut GetAuto<TIn, TOut>(Prompt prompt, TIn target, Func<string, TOut> parser, ThinkValue tv)
+    private static TOut GetAuto<TIn, TOut>(string queryId, Prompt prompt, TIn target, Func<string, TOut> parser,
+        ThinkValue tv)
         where TIn : IHashable, IHasHtmlDocs
     {
         string folderName = Path.Combine(Program.LLM_CACHE_ROOT, $"{(uint)prompt.system.hashCode()}");
@@ -322,7 +289,7 @@ public static class LLMTools
             string? answer;
             if (Program.USE_OPENROUTER)
             {
-                answer = RequestOpenRouter(prompt, target.htmlDocumentation, tv);
+                answer = RequestOpenRouter(prompt, target.htmlDocumentation);
             }
             else
             {
@@ -390,7 +357,7 @@ public static class LLMTools
         return chatTask.Result;
     }
 
-    private static string RequestOpenRouter(Prompt prompt, string data, ThinkValue tv)
+    private static string RequestOpenRouter(Prompt prompt, string data)
     {
         OpenAIClientOptions opts = new()
         {
@@ -415,7 +382,7 @@ public static class LLMTools
         return text;
     }
 
-    public static (GroupedEnum[], string[]) ParseEnumProposal(string input)
+    private static (GroupedEnum[], string[]) ParseEnumProposal(string input)
     {
         const string exclusivePrefix = "exclusive enum ";
         const string flagsPrefix = "flags enum ";
@@ -500,6 +467,43 @@ public static class LLMTools
         }
 
         return (groups.ToArray(), couldNotGroup);
+    }
+
+    private static Dictionary<string, bool> ParseMethodNullable(string x)
+    {
+        var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
+        return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
+    }
+
+    private static string? ParseMethodThrows(string x)
+    {
+        if (x.ToLower().Contains("regular method")) return null;
+        var t = x.Trim();
+        if (Program.models.ContainsKey(t)) return t;
+        throw new KeyNotFoundException();
+    }
+
+    private static MethodEffect ParseMethodEffect(string x)
+    {
+        var l = x.ToLower().Trim();
+        switch (l)
+        {
+            case "does nothing":
+                return MethodEffect.Empty;
+            case "pure method":
+                return MethodEffect.Pure;
+            case "has side effects":
+                return MethodEffect.HasSideEffects;
+            default:
+                throw new ArgumentException();
+        }
+    }
+
+    private static ListAPI[] ParseListProposal(string x)
+    {
+        if (x.Trim().ToLower().Contains("not a list")) return [];
+        var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
+        return JsonConvert.DeserializeObject<ListAPI[]>(string.Join("lists", lines))!;
     }
 
     public static bool CantBeNull(string type)
