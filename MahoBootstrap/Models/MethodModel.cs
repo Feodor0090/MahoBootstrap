@@ -99,14 +99,14 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
     {
         get
         {
-            int c = 0;
+            int c = 1;
 
             foreach (var arg in arguments)
             {
-                c = c ^ arg.type.hashCode();
+                c *= arg.type.hashCode();
             }
 
-            return name.hashCode() ^ returnType.hashCode() ^ c;
+            return name.hashCode() * returnType.hashCode() * c * owner!.stableHashCode;
         }
     }
 
