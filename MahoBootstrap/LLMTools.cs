@@ -1,12 +1,13 @@
 using System.ClientModel;
 using System.Text;
-using ikvm.extensions;
 using MahoBootstrap.Models;
 using Newtonsoft.Json;
 using OllamaSharp;
 using OllamaSharp.Models.Chat;
 using OpenAI;
 using OpenAI.Chat;
+
+#pragma warning disable OPENAI001
 
 namespace MahoBootstrap;
 
@@ -221,20 +222,19 @@ public static class LLMTools
 
     public static void Process(ClassModel model)
     {
-        ThinkValue fast = ThinkValue.Medium;
-        ThinkValue slow = ThinkValue.High;
-
         foreach (var method in model.methods)
         {
             MethodAnalysisData mad = new();
             Func<string, string> equalParser = static x => x;
-            mad.javadoc = GetAuto("javadocs", new Prompt(JAVADOC_PROMPT, javadocExamples), method, equalParser, fast);
-            mad.xmldoc = GetAuto("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples), method, equalParser, fast);
-            mad.effect = GetAuto("effects", IMPL_PROMPT, method, ParseMethodEffect, fast);
+            mad.javadoc = GetAuto("javadocs", new Prompt(JAVADOC_PROMPT, javadocExamples), null, method,
+                equalParser);
+            mad.xmldoc = GetAuto("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples), ThinkValue.Low, method,
+                equalParser);
+            mad.effect = GetAuto("effects", IMPL_PROMPT, ThinkValue.Medium, method, ParseMethodEffect);
             if (method.throws.Length == 0)
                 mad.alwaysThrows = null;
             else
-                mad.alwaysThrows = GetAuto("throws", ALWAYS_THROWS_PROMPT, method, ParseMethodThrows, fast);
+                mad.alwaysThrows = GetAuto("throws", ALWAYS_THROWS_PROMPT, ThinkValue.Low, method, ParseMethodThrows);
 
             if (CantBeNull(method.returnType) && method.arguments.All(x => CantBeNull(x.type)))
             {
@@ -245,19 +245,19 @@ public static class LLMTools
             }
             else
             {
-                mad.nullability = GetAuto("", new Prompt(NULLABLE_PROMPT, nullableExamples), method,
-                    ParseMethodNullable, fast);
+                mad.nullability = GetAuto("", new Prompt(NULLABLE_PROMPT, nullableExamples), ThinkValue.Medium, method,
+                    ParseMethodNullable);
             }
 
             method.analysisData = mad;
         }
 
         ClassAnalysisData cad = new();
-        cad.listAPI = GetAuto("lists", LIST_PROMPT, model, ParseListProposal, slow);
+        cad.listAPI = GetAuto("lists", LIST_PROMPT, ThinkValue.High, model, ParseListProposal);
         if (model.consts.Any())
         {
             var prompt = ComposeEnumPrompt(model.consts.Select(x => x.name).ToList());
-            (cad.groupedEnums, cad.keptConsts) = GetAuto("enums", prompt, model, ParseEnumProposal, slow);
+            (cad.groupedEnums, cad.keptConsts) = GetAuto("enums", prompt, ThinkValue.High, model, ParseEnumProposal);
         }
         else
         {
@@ -271,11 +271,11 @@ public static class LLMTools
         Directory.Delete(Program.LLM_CACHE_ROOT, true);
     }
 
-    private static TOut GetAuto<TIn, TOut>(string queryId, Prompt prompt, TIn target, Func<string, TOut> parser,
-        ThinkValue tv)
+    private static TOut GetAuto<TIn, TOut>(string queryId, Prompt prompt, ThinkValue? tv, TIn target,
+        Func<string, TOut> parser)
         where TIn : IHashable, IHasHtmlDocs
     {
-        string folderName = Path.Combine(Program.LLM_CACHE_ROOT, $"{(uint)prompt.system.hashCode()}");
+        string folderName = Path.Combine(Program.LLM_CACHE_ROOT, queryId);
         string cacheFileName = Path.Combine(folderName, $"{target.stableHashCode}");
         if (File.Exists($"{cacheFileName}.txt"))
         {
@@ -289,7 +289,7 @@ public static class LLMTools
             string? answer;
             if (Program.USE_OPENROUTER)
             {
-                answer = RequestOpenRouter(prompt, target.htmlDocumentation);
+                answer = RequestOpenRouter(prompt, target.htmlDocumentation, tv);
             }
             else
             {
@@ -314,7 +314,7 @@ public static class LLMTools
         }
     }
 
-    private static (string? thinking, string answer) RequestOllama(Prompt prompt, string data, ThinkValue tv)
+    private static (string? thinking, string answer) RequestOllama(Prompt prompt, string data, ThinkValue? tv)
     {
         var ollama = new OllamaApiClient(new Uri(Program.OLLAMA_HOST));
         ollama.SelectedModel = Program.MODEL;
@@ -338,7 +338,7 @@ public static class LLMTools
         {
             Model = ollama.SelectedModel,
             Messages = messages,
-            Think = tv
+            Think = tv ?? new ThinkValue(false)
         };
 
         var chatTask = Task.Run(async () =>
@@ -357,7 +357,7 @@ public static class LLMTools
         return chatTask.Result;
     }
 
-    private static string RequestOpenRouter(Prompt prompt, string data)
+    private static string RequestOpenRouter(Prompt prompt, string data, ThinkValue? tv)
     {
         OpenAIClientOptions opts = new()
         {
@@ -376,9 +376,16 @@ public static class LLMTools
 
         messages.Add(new UserChatMessage(data));
 
-        ChatCompletion completion = client.CompleteChatAsync(messages).Result;
+        var chatOpts = new ChatCompletionOptions();
+        if (tv != null)
+            chatOpts.ReasoningEffortLevel = new ChatReasoningEffortLevel(tv.ToString());
+
+        var chat = client.CompleteChatAsync(messages, chatOpts);
+        ChatCompletion completion = chat.Result;
 
         var text = completion.Content[0].Text;
+
+        Thread.Sleep(10000);
         return text;
     }
 
@@ -471,7 +478,7 @@ public static class LLMTools
 
     private static Dictionary<string, bool> ParseMethodNullable(string x)
     {
-        var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
+        var lines = x.Split('\n').Select(y => y.Trim()).Where(y => !string.IsNullOrWhiteSpace(y) && y[0] != '`');
         return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
     }
 
