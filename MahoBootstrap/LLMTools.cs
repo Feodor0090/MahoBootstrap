@@ -222,11 +222,10 @@ public static class LLMTools
         foreach (var method in model.methods)
         {
             MethodAnalysisData mad = new();
-            Func<MethodModel, string> printer = static x => x.documentation;
             Func<string, string> parser = static x => x;
-            mad.javadoc = GetAuto(new Prompt(JAVADOC_PROMPT, javadocExamples), method, printer, parser, fast);
-            mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, printer, parser, fast);
-            mad.effect = GetAuto(IMPL_PROMPT, method, printer, x =>
+            mad.javadoc = GetAuto(new Prompt(JAVADOC_PROMPT, javadocExamples), method, parser, fast);
+            mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, parser, fast);
+            mad.effect = GetAuto(IMPL_PROMPT, method, x =>
             {
                 var l = x.ToLower().Trim();
                 switch (l)
@@ -242,7 +241,7 @@ public static class LLMTools
                 }
             }, fast);
 
-            mad.alwaysThrows = GetAuto(ALWAYS_THROWS_PROMPT, method, printer, x =>
+            mad.alwaysThrows = GetAuto(ALWAYS_THROWS_PROMPT, method, x =>
             {
                 if (x.ToLower().Contains("regular method"))
                     return (string?)null;
@@ -252,7 +251,7 @@ public static class LLMTools
                 throw new KeyNotFoundException();
             }, fast);
 
-            mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, printer, x =>
+            mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, x =>
             {
                 var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
                 return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
@@ -261,7 +260,7 @@ public static class LLMTools
         }
 
         ClassAnalysisData cad = new();
-        cad.listAPI = GetAuto(LIST_PROMPT, model, x => x.documentation, x =>
+        cad.listAPI = GetAuto(LIST_PROMPT, model, x =>
         {
             var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
             return JsonConvert.DeserializeObject<ListAPI[]>(string.Join("", lines))!;
@@ -269,7 +268,7 @@ public static class LLMTools
         if (model.consts.Any())
         {
             (cad.groupedEnums, cad.keptConsts) = GetAuto(ComposeEnumPrompt(model.consts.Select(x => x.name).ToList()),
-                model, x => x.documentation, ParseEnumProposal, slow);
+                model, ParseEnumProposal, slow);
         }
         else
         {
@@ -283,9 +282,8 @@ public static class LLMTools
         Directory.Delete(Program.LLM_CACHE_ROOT, true);
     }
 
-    private static TOut GetAuto<TIn, TOut>(Prompt prompt, TIn target, Func<TIn, string> printer,
-        Func<string, TOut> parser, ThinkValue tv)
-        where TIn : IHashable
+    private static TOut GetAuto<TIn, TOut>(Prompt prompt, TIn target, Func<string, TOut> parser, ThinkValue tv)
+        where TIn : IHashable, IHasHtmlDocs
     {
         string folderName = Path.Combine(Program.LLM_CACHE_ROOT, $"{(uint)prompt.system.hashCode()}");
         string cacheFileName = Path.Combine(folderName, $"{target.stableHashCode}");
@@ -297,7 +295,7 @@ public static class LLMTools
         Directory.CreateDirectory(folderName);
         while (true)
         {
-            var generated = Request(prompt, printer(target), tv);
+            var generated = Request(prompt, target.htmlDocumentation, tv);
             var timeId = DateTime.Now.ToString().Replace(':', '.').Replace(' ', '_');
             File.WriteAllText($"{cacheFileName}_thinking_{timeId}.txt", generated.thinking);
             TOut result;

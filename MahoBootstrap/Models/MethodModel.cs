@@ -4,12 +4,12 @@ using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
 
-public sealed class MethodModel : CodeModel, IHashable
+public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
 {
     public readonly string returnType;
     public readonly string name;
     public readonly MemberType type;
-    public readonly string documentation;
+    public string htmlDocumentation { get; }
 
     public ClassModel? owner;
     public MethodAnalysisData? analysisData;
@@ -19,7 +19,7 @@ public sealed class MethodModel : CodeModel, IHashable
         returnType = mp.returnType;
         name = mp.name;
         type = mp.type;
-        documentation = string.Join('\n', mp.relevantDocPart.Select(x => x.OuterHtml));
+        htmlDocumentation = string.Join('\n', mp.relevantDocPart.Select(x => x.OuterHtml));
     }
 
     public MethodModel(MemberAccess access, ImmutableArray<string> throws, ImmutableArray<CodeArgument> arguments,
@@ -29,7 +29,7 @@ public sealed class MethodModel : CodeModel, IHashable
         this.returnType = returnType;
         this.name = name;
         this.type = type;
-        this.documentation = docs;
+        htmlDocumentation = docs;
     }
 
     public MethodStyle MethodStyle

@@ -4,7 +4,7 @@ using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
 
-public sealed class ClassModel : IEquatable<ClassModel>, IHashable
+public sealed class ClassModel : IEquatable<ClassModel>, IHashable, IHasHtmlDocs
 {
     /// <summary>
     /// Where this class was read? Null if merged/generated.
@@ -20,7 +20,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
     public readonly ImmutableArray<MethodModel> methods;
     public readonly ImmutableArray<FieldModel> fields;
     public readonly ImmutableArray<ConstModel> consts;
-    public readonly string documentation;
+    public string htmlDocumentation { get; }
 
     public ClassAnalysisData? analysisData;
 
@@ -49,7 +49,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
         ];
         fields = [..cp.fields.Where(c => ConstModel.GetConstType(c) == null).Select(c => new FieldModel(c))];
         consts = [..cp.fields.Where(c => ConstModel.GetConstType(c) != null).Select(c => new ConstModel(c))];
-        documentation = cp.docText;
+        htmlDocumentation = cp.docText;
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
                 return x;
             })
         ];
-        documentation = class1.documentation;
+        htmlDocumentation = class1.htmlDocumentation;
     }
 
 
@@ -224,7 +224,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable
 
                     // merging
                     list[i] = new MethodModel(li.access, MergeSimple(li.throws, ri.throws), li.arguments, li.returnType,
-                        li.name, li.type, li.documentation);
+                        li.name, li.type, li.htmlDocumentation);
                     found = true;
                     break;
                 }
