@@ -11,6 +11,7 @@ public static class LLMTools
 {
     public const string JAVADOC_PROMPT = "Here is a \"rendered\" fragment of javadoc. " +
                                          "Reprint it as \"javadoc comment block\" so i could paste it in java source code. " +
+                                         "Use \"@\" tags, avoid raw html. Do not output paragraph markup (i.e. <p></p>). " +
                                          "Use \"@link\" where feasible. Always print FULL type names, i.e. with packages. " +
                                          "Output only new documentation comment. Do *not* wrap your answer in code block.";
 
