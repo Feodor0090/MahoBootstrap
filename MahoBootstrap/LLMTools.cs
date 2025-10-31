@@ -253,11 +253,27 @@ public static class LLMTools
                 throw new KeyNotFoundException();
             }, fast);
 
-            mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, x =>
+            if (CantBeNull(method.returnType) &&
+                (method.arguments.Length == 0 || method.arguments.All(x => CantBeNull(x.type))))
             {
-                var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
-                return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
-            }, fast);
+                Dictionary<string, bool> map = new();
+                map["return"] = false;
+                foreach (var arg in method.arguments)
+                {
+                    map[arg.name] = false;
+                }
+
+                mad.nullability = map;
+            }
+            else
+            {
+                mad.nullability = GetAuto(new Prompt(NULLABLE_PROMPT, nullableExamples), method, x =>
+                {
+                    var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
+                    return JsonConvert.DeserializeObject<Dictionary<string, bool>>(string.Join("", lines))!;
+                }, fast);
+            }
+
             method.analysisData = mad;
         }
 
@@ -441,5 +457,24 @@ public static class LLMTools
         }
 
         return (groups.ToArray(), couldNotGroup);
+    }
+
+    public static bool CantBeNull(string type)
+    {
+        switch (type)
+        {
+            case "void":
+            case "byte":
+            case "boolean":
+            case "short":
+            case "char":
+            case "int":
+            case "long":
+            case "float":
+            case "double":
+                return true;
+            default:
+                return false;
+        }
     }
 }
