@@ -187,8 +187,8 @@ public static class LLMTools
 
     public static void Process(ClassModel model)
     {
-        ThinkValue fast = new ThinkValue(true);// ThinkValue.Medium; for GPT-OSS
-        ThinkValue slow = new ThinkValue(true);// ThinkValue.High;
+        ThinkValue fast = new ThinkValue(true); // ThinkValue.Medium; for GPT-OSS
+        ThinkValue slow = new ThinkValue(true); // ThinkValue.High;
 
         foreach (var method in model.methods)
         {
@@ -269,7 +269,8 @@ public static class LLMTools
         while (true)
         {
             var generated = Request(prompt, printer(target), tv);
-            File.WriteAllText($"{cacheFileName}_thinking_{DateTime.Now}.txt", generated.thinking);
+            var timeId = DateTime.Now.ToString().Replace(':', '.').Replace(' ', '_');
+            File.WriteAllText($"{cacheFileName}_thinking_{timeId}.txt", generated.thinking);
             TOut result;
             try
             {
@@ -277,7 +278,7 @@ public static class LLMTools
             }
             catch
             {
-                File.WriteAllText($"{cacheFileName}_broken_{DateTime.Now}.txt", generated.answer);
+                File.WriteAllText($"{cacheFileName}_broken_{timeId}.txt", generated.answer);
                 continue;
             }
 
