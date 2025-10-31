@@ -1,9 +1,12 @@
+using System.ClientModel;
 using System.Text;
 using ikvm.extensions;
 using MahoBootstrap.Models;
 using Newtonsoft.Json;
 using OllamaSharp;
 using OllamaSharp.Models.Chat;
+using OpenAI;
+using OpenAI.Chat;
 
 namespace MahoBootstrap;
 
@@ -280,6 +283,8 @@ public static class LLMTools
         ClassAnalysisData cad = new();
         cad.listAPI = GetAuto(LIST_PROMPT, model, x =>
         {
+            if (x.Trim().ToLower().Contains("not a list"))
+                return [];
             var lines = x.Split('\n').Select(y => y.Trim()).Where(y => y[0] != '`');
             return JsonConvert.DeserializeObject<ListAPI[]>(string.Join("", lines))!;
         }, slow);
@@ -313,29 +318,42 @@ public static class LLMTools
         Directory.CreateDirectory(folderName);
         while (true)
         {
-            var generated = Request(prompt, target.htmlDocumentation, tv);
             var timeId = DateTime.Now.ToString().Replace(':', '.').Replace(' ', '_');
-            File.WriteAllText($"{cacheFileName}_thinking_{timeId}.txt", generated.thinking);
+            string? answer;
+            if (Program.USE_OPENROUTER)
+            {
+                answer = RequestOpenRouter(prompt, target.htmlDocumentation, tv);
+            }
+            else
+            {
+                string? thinking;
+                (thinking, answer) = RequestOllama(prompt, target.htmlDocumentation, tv);
+                File.WriteAllText($"{cacheFileName}_thinking_{timeId}.txt", thinking);
+            }
+
             TOut result;
             try
             {
-                result = parser(generated.answer);
+                result = parser(answer);
             }
             catch
             {
-                File.WriteAllText($"{cacheFileName}_broken_{timeId}.txt", generated.answer);
+                File.WriteAllText($"{cacheFileName}_broken_{timeId}.txt", answer);
                 continue;
             }
 
-            File.WriteAllText($"{cacheFileName}.txt", generated.answer);
+            File.WriteAllText($"{cacheFileName}.txt", answer);
             return result;
         }
     }
 
-    private static (string thinking, string answer) Request(Prompt prompt, string data, ThinkValue tv)
+    private static (string? thinking, string answer) RequestOllama(Prompt prompt, string data, ThinkValue tv)
     {
         var ollama = new OllamaApiClient(new Uri(Program.OLLAMA_HOST));
         ollama.SelectedModel = Program.MODEL;
+
+        if (!Program.MODEL.Contains("gpt-oss"))
+            tv = new ThinkValue(true); // for deepseek
 
         var messages = new List<Message>
         {
@@ -370,6 +388,31 @@ public static class LLMTools
             return (think.ToString(), final.ToString());
         });
         return chatTask.Result;
+    }
+
+    private static string RequestOpenRouter(Prompt prompt, string data, ThinkValue tv)
+    {
+        OpenAIClientOptions opts = new()
+        {
+            Endpoint = new Uri("https://openrouter.ai/api/v1")
+        };
+        ApiKeyCredential key = new ApiKeyCredential(Secrets.OPENROUTER_KEY);
+        ChatClient client = new("openai/gpt-oss-20b:free", key, opts);
+
+        List<ChatMessage> messages = [new SystemChatMessage(prompt.system)];
+
+        foreach (var example in prompt.examples)
+        {
+            messages.Add(new UserChatMessage(example.Item1));
+            messages.Add(new AssistantChatMessage(example.Item2));
+        }
+
+        messages.Add(new UserChatMessage(data));
+
+        ChatCompletion completion = client.CompleteChatAsync(messages).Result;
+
+        var text = completion.Content[0].Text;
+        return text;
     }
 
     public static (GroupedEnum[], string[]) ParseEnumProposal(string input)

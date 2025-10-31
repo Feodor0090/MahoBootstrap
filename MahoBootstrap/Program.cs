@@ -11,10 +11,11 @@ internal class Program
 
     public const string LLM_CACHE_ROOT = "/home/ansel/mbs_cache";
     public const string OLLAMA_HOST = "http://127.0.0.1:11434";
-    public const string MODEL = "deepseek-r1:14b";
+    public const string MODEL = "gpt-oss:20b";
     public const string DOCS_REPO = "/home/ansel/repos/j2me/J2ME_Docs/docs";
     public const string ARMAN_JDL = "/home/ansel/Desktop/javadocs";
     public const string MIDLET_SHARP_TARGET = "/tmp/mbs/cs";
+    public const bool USE_OPENROUTER = true;
 
     public static void Main(string[] args)
     {
