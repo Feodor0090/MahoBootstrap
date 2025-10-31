@@ -20,23 +20,23 @@ internal class Program
     {
         string[] docRoots =
         [
-            $"{DOCS_REPO}/midp-2.0", // MIDP
-            $"{DOCS_REPO}/cldc-1.1", // CLDC
-            $"{DOCS_REPO}/jsr135", // MMAPI
-            $"{ARMAN_JDL}/jsr184", // M3G
-            $"{ARMAN_JDL}/nokiaui", // NUI
-            $"{DOCS_REPO}/jsr211", // Content handler
-            $"{ARMAN_JDL}/jsr75/file", // File system
-            $"{ARMAN_JDL}/jsr75/pim", // Data system
-            $"{ARMAN_JDL}/iapinfo", // AP info
-            $"{DOCS_REPO}/jsr82_1.1.1_javadoc", // Bluetooth
-            $"{DOCS_REPO}/jsr179-1_1-mrel-javadoc", // GPS
-            $"{DOCS_REPO}/jsr179_LocationUtil", // GPS Util
-            $"{ARMAN_JDL}/jsr226", // M2G
+            Path.Combine(DOCS_REPO, "midp-2.0"), // MIDP
+            Path.Combine(DOCS_REPO, "cldc-1.1"), // CLDC
+            Path.Combine(DOCS_REPO, "jsr135"), // MMAPI
+            Path.Combine(ARMAN_JDL, "jsr184"), // M3G
+            Path.Combine(ARMAN_JDL, "nokiaui"), // NUI
+            Path.Combine(DOCS_REPO, "jsr211"), // Content handler
+            Path.Combine(ARMAN_JDL, "jsr75", "file"), // File system
+            Path.Combine(ARMAN_JDL, "jsr75", "pim"), // Data system
+            Path.Combine(ARMAN_JDL, "iapinfo"), // AP info
+            Path.Combine(DOCS_REPO, "jsr82_1.1.1_javadoc"), // Bluetooth
+            Path.Combine(DOCS_REPO, "jsr179-1_1-mrel-javadoc"), // GPS
+            Path.Combine(DOCS_REPO, "jsr179_LocationUtil"), // GPS Util
+            Path.Combine(ARMAN_JDL, "jsr226"), // M2G
             //"/home/ansel/Desktop/javadocs/jsr234", // AMMS
-            $"{ARMAN_JDL}/jsr256", // Sensors
-            $"{DOCS_REPO}/jsr177", // SATS
-            $"{DOCS_REPO}/jsr205", // SMS
+            Path.Combine(ARMAN_JDL, "jsr256"), // Sensors
+            Path.Combine(DOCS_REPO, "jsr177"), // SATS
+            Path.Combine(DOCS_REPO, "jsr205"), // SMS
         ];
         string target = "ms";
 
@@ -59,23 +59,23 @@ internal class Program
                 var files = Directory.EnumerateFiles(dir, "*.html", SearchOption.AllDirectories);
                 foreach (var file in files)
                 {
-                    if (file.Contains("/class-use/"))
+                    if (file.Contains($"{Path.DirectorySeparatorChar}class-use{Path.DirectorySeparatorChar}"))
                         continue;
-                    if (file.Contains("doc-files/"))
+                    if (file.Contains($"doc-files{Path.DirectorySeparatorChar}"))
                         continue;
-                    if (file.Contains("/package-use.html"))
+                    if (file.Contains("package-use.html"))
                         continue;
-                    if (file.Contains("/package-tree.html"))
+                    if (file.Contains("package-tree.html"))
                         continue;
-                    if (file.Contains("/package-frame.html"))
+                    if (file.Contains("package-frame.html"))
                         continue;
-                    if (file.Contains("/package-summary.html"))
+                    if (file.Contains("package-summary.html"))
                         continue;
-                    if (file.Contains("/copyright-notice.html"))
+                    if (file.Contains("copyright-notice.html"))
                         continue;
-                    if (file.Contains("/copyright.html"))
+                    if (file.Contains("copyright.html"))
                         continue;
-                    if (file.Contains("/index-files/"))
+                    if (file.Contains($"{Path.DirectorySeparatorChar}index-files{Path.DirectorySeparatorChar}"))
                         continue;
                     try
                     {
@@ -138,11 +138,9 @@ internal class Program
 
     public static T? GetRandomElement<T>(ICollection<T> collection)
     {
-        if(collection.Count == 0)
+        if (collection.Count == 0)
             return default;
         var index = Random.Shared.Next(collection.Count);
         return collection.ElementAt(index);
     }
-
-
 }
