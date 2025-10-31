@@ -13,7 +13,7 @@ public static class LLMTools
                                          "Reprint it as \"javadoc comment block\" so i could paste it in java source code. " +
                                          "Use \"@\" tags, avoid raw html. Do not output paragraph markup (i.e. <p></p>). " +
                                          "Use \"@link\" where feasible. Always print FULL type names, i.e. with packages. " +
-                                         "Ignore method overriding, docs inherition. Do not output \"@inheritDoc\". " +
+                                         "If documentation says that method is inherited/overriden, use \"@inheritDoc\" if needed. " +
                                          "Output only new documentation comment. Do *not* wrap your answer in code block.";
 
     public static readonly (string, string)[] javadocExamples =
