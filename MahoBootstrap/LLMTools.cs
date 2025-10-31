@@ -11,7 +11,33 @@ public static class LLMTools
 {
     public const string JAVADOC_PROMPT = "Here is a \"rendered\" fragment of javadoc. " +
                                          "Reprint it as \"javadoc comment block\" so i could paste it in java source code. " +
-                                         "Use \"@link\" where feasible. Output only new documentation comment. Do *not* wrap your answer in code block.";
+                                         "Use \"@link\" where feasible. Always print FULL type names, i.e. with packages. " +
+                                         "Output only new documentation comment. Do *not* wrap your answer in code block.";
+
+    public static readonly (string, string)[] javadocExamples =
+    [
+        (REC_STORE_DOC_TEXT,
+            "/**\n * Open (and possibly create) a record store associated with the\n" +
+            " * given MIDlet suite. If this method is called by a MIDlet when\n" +
+            " * the record store is already open by a MIDlet in the MIDlet suite,\n" +
+            " * this method returns a reference to the same {@link javax.microedition.rms.RecordStore} object.\n" +
+            " *\n" +
+            " * @param recordStoreName the MIDlet suite unique name for the\n" +
+            " *          record store, consisting of between one and 32 Unicode\n" +
+            " *          characters inclusive.\n" +
+            " * @param createIfNecessary if true, the record store will be\n" +
+            " *                created if necessary\n" +
+            " * @return {@link javax.microedition.rms.RecordStore} object for the record store\n" +
+            " * @throws {@link javax.microedition.rms.RecordStoreException} if a record store-related\n" +
+            " *                exception occurred\n" +
+            " * @throws {@link javax.microedition.rms.RecordStoreNotFoundException} if the record store\n" +
+            " *                could not be found\n" +
+            " * @throws {@link javax.microedition.rms.RecordStoreFullException} if the operation cannot be\n" +
+            " *                completed because the record store is full\n" +
+            " * @throws {@link java.lang.IllegalArgumentException} if\n" +
+            " *          recordStoreName is invalid\n" +
+            " */")
+    ];
 
     public const string XMLDOC_PROMPT = "Here is a fragment of javadoc. Print information from it as C# xmldoc. " +
                                         "Keep all type names, signatures and naming styles equal, " +
@@ -22,21 +48,7 @@ public static class LLMTools
     public static readonly (string, string)[] xmldocExamples =
     [
         (
-            "<pre>\n\npublic static <a href=\"../../../javax/microedition/rms/RecordStore.html\" title=\"class in javax.microedition.rms\">RecordStore</a> " +
-            "<b>openRecordStore</b>(<a href=\"../../../java/lang/String.html\" title=\"class in java.lang\">String</a>&nbsp;recordStoreName,\n" +
-            "                                          boolean&nbsp;createIfNecessary)\n" +
-            "                                   throws <a href=\"../../../javax/microedition/rms/RecordStoreException.html\" title=\"class in javax.microedition.rms\">RecordStoreException</a>,\n" +
-            "                                          <a href=\"../../../javax/microedition/rms/RecordStoreFullException.html\" title=\"class in javax.microedition.rms\">RecordStoreFullException</a>,\n" +
-            "                                          <a href=\"../../../javax/microedition/rms/RecordStoreNotFoundException.html\" title=\"class in javax.microedition.rms\">RecordStoreNotFoundException</a></pre>\n<dl>\n\n" +
-            "<dd>Open (and possibly create) a record store associated with the\n given MIDlet suite. If this method is called by a MIDlet when\n the record store is already open by a MIDlet in the MIDlet suite,\n" +
-            " this method returns a reference to the same RecordStore object.\n\n<p>\n\n</p></dd><dd><dl>\n\n<dt><b>Parameters:</b></dt><dd><code>recordStoreName</code> - the MIDlet suite unique name for the\n" +
-            "          record store, consisting of between one and 32 Unicode\n          characters inclusive.</dd><dd><code>createIfNecessary</code> - if true, the record store will be\n" +
-            "\t\tcreated if necessary\n</dd><dt><b>Returns:</b></dt><dd><code>RecordStore</code> object for the record store\n</dd><dt><b>Throws:</b>\n" +
-            "</dt><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreException.html\" title=\"class in javax.microedition.rms\">RecordStoreException</a></code> - if a record store-related\n" +
-            "\t\texception occurred\n</dd><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreNotFoundException.html\" title=\"class in javax.microedition.rms\">RecordStoreNotFoundException</a></code> - if the record store" +
-            "\n\t\tcould not be found\n</dd><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreFullException.html\" title=\"class in javax.microedition.rms\">RecordStoreFullException</a></code> - if the operation cannot be" +
-            "\n\t\tcompleted because the record store is full\n</dd><dd><code><a href=\"../../../java/lang/IllegalArgumentException.html\" title=\"class in java.lang\">IllegalArgumentException</a></code> - if\n" +
-            "          recordStoreName is invalid</dd></dl>\n\n</dd>\n\n</dl>",
+            REC_STORE_DOC_TEXT,
             "/// <summary>\n/// Open (and possibly create) a record store associated with the given <see cref=\"javax.microedition.midlet.MIDlet\"/> suite.\n" +
             "/// If this method is called by a <see cref=\"javax.microedition.midlet.MIDlet\"/> when the record store is already open by a " +
             "<see cref=\"javax.microedition.midlet.MIDlet\"/> in the <see cref=\"javax.microedition.midlet.MIDlet\"/> suite,\n" +
@@ -155,6 +167,23 @@ public static class LLMTools
             "```json\n{\n    \"return\": false,\n    \"data\": true\n}\n```\n")
     ];
 
+    public const string REC_STORE_DOC_TEXT =
+        "<pre>\n\npublic static <a href=\"../../../javax/microedition/rms/RecordStore.html\" title=\"class in javax.microedition.rms\">RecordStore</a> " +
+        "<b>openRecordStore</b>(<a href=\"../../../java/lang/String.html\" title=\"class in java.lang\">String</a>&nbsp;recordStoreName,\n" +
+        "                                          boolean&nbsp;createIfNecessary)\n" +
+        "                                   throws <a href=\"../../../javax/microedition/rms/RecordStoreException.html\" title=\"class in javax.microedition.rms\">RecordStoreException</a>,\n" +
+        "                                          <a href=\"../../../javax/microedition/rms/RecordStoreFullException.html\" title=\"class in javax.microedition.rms\">RecordStoreFullException</a>,\n" +
+        "                                          <a href=\"../../../javax/microedition/rms/RecordStoreNotFoundException.html\" title=\"class in javax.microedition.rms\">RecordStoreNotFoundException</a></pre>\n<dl>\n\n" +
+        "<dd>Open (and possibly create) a record store associated with the\n given MIDlet suite. If this method is called by a MIDlet when\n the record store is already open by a MIDlet in the MIDlet suite,\n" +
+        " this method returns a reference to the same RecordStore object.\n\n<p>\n\n</p></dd><dd><dl>\n\n<dt><b>Parameters:</b></dt><dd><code>recordStoreName</code> - the MIDlet suite unique name for the\n" +
+        "          record store, consisting of between one and 32 Unicode\n          characters inclusive.</dd><dd><code>createIfNecessary</code> - if true, the record store will be\n" +
+        "\t\tcreated if necessary\n</dd><dt><b>Returns:</b></dt><dd><code>RecordStore</code> object for the record store\n</dd><dt><b>Throws:</b>\n" +
+        "</dt><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreException.html\" title=\"class in javax.microedition.rms\">RecordStoreException</a></code> - if a record store-related\n" +
+        "\t\texception occurred\n</dd><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreNotFoundException.html\" title=\"class in javax.microedition.rms\">RecordStoreNotFoundException</a></code> - if the record store" +
+        "\n\t\tcould not be found\n</dd><dd><code><a href=\"../../../javax/microedition/rms/RecordStoreFullException.html\" title=\"class in javax.microedition.rms\">RecordStoreFullException</a></code> - if the operation cannot be" +
+        "\n\t\tcompleted because the record store is full\n</dd><dd><code><a href=\"../../../java/lang/IllegalArgumentException.html\" title=\"class in java.lang\">IllegalArgumentException</a></code> - if\n" +
+        "          recordStoreName is invalid</dd></dl>\n\n</dd>\n\n</dl>";
+
     public static string ComposeEnumPrompt(List<string> constNames)
     {
         return $"Act as software architector.\n" +
@@ -195,7 +224,7 @@ public static class LLMTools
             MethodAnalysisData mad = new();
             Func<MethodModel, string> printer = static x => x.documentation;
             Func<string, string> parser = static x => x;
-            mad.javadoc = GetAuto(JAVADOC_PROMPT, method, printer, parser, fast);
+            mad.javadoc = GetAuto(new Prompt(JAVADOC_PROMPT, javadocExamples), method, printer, parser, fast);
             mad.xmldoc = GetAuto(new Prompt(XMLDOC_PROMPT, xmldocExamples), method, printer, parser, fast);
             mad.effect = GetAuto(IMPL_PROMPT, method, printer, x =>
             {
