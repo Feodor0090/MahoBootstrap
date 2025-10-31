@@ -392,10 +392,22 @@ public static class JavaDocReader
 
     private static string GlobalizeReference(string pkg, IElement link)
     {
-        var href = link.Attributes["href"]!.Value;
-        var fullPath = Path.GetFullPath(href, "/" + pkg.Replace('.', '/'));
-        var className = fullPath[1..^5].Replace('/', '.');
-        return className;
+        if (Path.DirectorySeparatorChar == '\\') // winNT
+        {
+            var href = link.Attributes["href"]!.Value.Replace('/','\\');
+            var basePath = "Z:\\" + pkg.Replace('.', '\\');
+            var fullPath = Path.GetFullPath(href, basePath);
+            var className = fullPath[3..^5].Replace('\\', '.');
+            return className;
+        }
+        else
+        {
+            var href = link.Attributes["href"]!.Value;
+            var basePath = "/" + pkg.Replace('.', '/');
+            var fullPath = Path.GetFullPath(href, basePath);
+            var className = fullPath[1..^5].Replace('/', '.');
+            return className;
+        }
     }
 
     private static bool IsBegin(IElement elem, string name)
