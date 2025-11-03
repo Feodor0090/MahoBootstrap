@@ -7,7 +7,7 @@ public class MethodPrototype : ICodePrototype
     public MemberType type;
     public MemberAccess access { get; set; }
     public string name;
-    public string returnType;
+    public string returnType = "void";
     public List<string> throws { get; } = new();
     public List<(string type, string name)> args { get; } = new();
     public List<IElement> relevantDocPart { get; } = new();

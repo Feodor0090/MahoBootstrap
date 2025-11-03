@@ -74,7 +74,7 @@ public class MidletSharpOutput : Output
             for (int i = allMethods.Count - 1; i >= 0; i = allMethods.Count - 1)
             {
                 MethodModel method = allMethods[i];
-                switch (method.MethodStyle)
+                switch (method.methodStyle)
                 {
                     case MethodStyle.Regular:
                     case MethodStyle.IndexGetter:
@@ -92,19 +92,19 @@ public class MidletSharpOutput : Output
                 allMethods.RemoveAt(i);
                 for (int j = 0; j < allMethods.Count; j++)
                 {
-                    switch (allMethods[j].MethodStyle)
+                    switch (allMethods[j].methodStyle)
                     {
                         default:
                             continue;
                         case MethodStyle.Getter:
                         case MethodStyle.Setter:
                         {
-                            if (allMethods[j].MethodStyle != method.MethodStyle &&
+                            if (allMethods[j].methodStyle != method.methodStyle &&
                                 MapName(allMethods[j]) == MapName(method) &&
-                                allMethods[j].PropertyType == method.PropertyType)
+                                allMethods[j].propertyType == method.propertyType)
                             {
                                 // found getter+setter
-                                if (method.MethodStyle == MethodStyle.Getter)
+                                if (method.methodStyle == MethodStyle.Getter)
                                     props.Add((method, allMethods[j]));
                                 else
                                     props.Add((allMethods[j], method));
@@ -117,7 +117,7 @@ public class MidletSharpOutput : Output
                     }
                 }
 
-                if (method.MethodStyle == MethodStyle.Getter)
+                if (method.methodStyle == MethodStyle.Getter)
                     props.Add((method, null));
                 else
                     props.Add((null, method));
@@ -129,7 +129,7 @@ public class MidletSharpOutput : Output
             {
                 MethodModel refModel = get ?? set!;
                 lines.Add(
-                    $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.PropertyType), ns)} {MapName(refModel)} {{");
+                    $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.propertyType), ns)} {MapName(refModel)} {{");
                 if (get != null)
                     lines.Add($"    [MapTo(\"{get.name}\")] get;");
                 if (set != null)

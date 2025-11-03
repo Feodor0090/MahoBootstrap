@@ -188,7 +188,7 @@ public static class NameMapper
 
     public static string MapName(MethodModel model)
     {
-        switch (model.MethodStyle)
+        switch (model.methodStyle)
         {
             case MethodStyle.Regular:
                 break;

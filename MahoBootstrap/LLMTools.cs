@@ -1,9 +1,6 @@
 using System.ClientModel;
-using System.Text;
 using MahoBootstrap.Models;
 using Newtonsoft.Json;
-using OllamaSharp;
-using OllamaSharp.Models.Chat;
 using OpenAI;
 using OpenAI.Chat;
 
@@ -13,11 +10,14 @@ namespace MahoBootstrap;
 
 public static class LLMTools
 {
+    #region Prompts
+
     public const string JAVADOC_PROMPT = "Here is a \"rendered\" fragment of javadoc. " +
                                          "Reprint it as \"javadoc comment block\" so i could paste it in java source code. " +
                                          "Use \"@\" tags, avoid raw html. Do not output paragraph markup (i.e. <p></p>). " +
                                          "Use \"@link\" where feasible. Always print FULL type names, i.e. with packages. " +
-                                         "If documentation says that method is inherited/overriden, use \"@inheritDoc\" if needed. " +
+                                         "Do not output \"@inheritDoc\", ignore \"Specified by:\" and \"Overrides:\" sections. " +
+                                         "Ignore \"Since:\" section, do not output \"@since\". " +
                                          "Output only new documentation comment. Do *not* wrap your answer in code block.";
 
     public static readonly (string, string)[] javadocExamples =
@@ -220,58 +220,102 @@ public static class LLMTools
                $"Could not group: MAX_WIDTH, MAX_HEIGHT\n```\n";
     }
 
-    public static void Process(ClassModel model)
+    #endregion
+
+    #region Queue
+
+    public static void Queue(List<ILLMJob> jobs, ClassModel model)
     {
         foreach (var method in model.methods)
         {
-            MethodAnalysisData mad = new();
             Func<string, string> equalParser = static x => x;
-            mad.javadoc = GetAuto("javadocs", new Prompt(JAVADOC_PROMPT, javadocExamples), null, method,
-                equalParser);
-            mad.xmldoc = GetAuto("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples), ThinkValue.Low, method,
-                equalParser);
-            mad.effect = GetAuto("effects", IMPL_PROMPT, ThinkValue.Medium, method, ParseMethodEffect);
-            if (method.throws.Length == 0)
-                mad.alwaysThrows = null;
-            else
-                mad.alwaysThrows = GetAuto("throws", ALWAYS_THROWS_PROMPT, ThinkValue.Low, method, ParseMethodThrows);
+            jobs.Add(new LLMJob<MethodModel, string>("javadocs", new Prompt(JAVADOC_PROMPT, javadocExamples),
+                ChatReasoningEffortLevel.Low, method, equalParser, (x, y) => y.analysisData.javadoc = x));
+            jobs.Add(new LLMJob<MethodModel, string>("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples),
+                ChatReasoningEffortLevel.Low, method, equalParser, (x, y) => y.analysisData.xmldoc = x));
+            jobs.Add(new LLMJob<MethodModel, MethodEffect>("effects", IMPL_PROMPT, ChatReasoningEffortLevel.Medium,
+                method,
+                ParseMethodEffect, (x, y) => y.analysisData.effect = x));
+
+            if (method.throws.Length != 0)
+                jobs.Add(new LLMJob<MethodModel, string?>("throws", ALWAYS_THROWS_PROMPT, ChatReasoningEffortLevel.Low,
+                    method,
+                    ParseMethodThrows, (x, y) => y.analysisData.alwaysThrows = x));
 
             if (CantBeNull(method.returnType) && method.arguments.All(x => CantBeNull(x.type)))
             {
-                mad.nullability = new Dictionary<string, bool>();
-                mad.nullability["return"] = false;
+                method.analysisData.nullability = new Dictionary<string, bool>();
+                method.analysisData.nullability["return"] = false;
                 foreach (var arg in method.arguments)
-                    mad.nullability[arg.name] = false;
+                    method.analysisData.nullability[arg.name] = false;
             }
             else
             {
-                mad.nullability = GetAuto("", new Prompt(NULLABLE_PROMPT, nullableExamples), ThinkValue.Medium, method,
-                    ParseMethodNullable);
+                jobs.Add(new LLMJob<MethodModel, Dictionary<string, bool>>("nulls",
+                    new Prompt(NULLABLE_PROMPT, nullableExamples), ChatReasoningEffortLevel.Medium, method,
+                    ParseMethodNullable, (x, y) => y.analysisData.nullability = x));
             }
-
-            method.analysisData = mad;
         }
 
-        ClassAnalysisData cad = new();
-        cad.listAPI = GetAuto("lists", LIST_PROMPT, ThinkValue.High, model, ParseListProposal);
+        jobs.Add(new LLMJob<ClassModel, ListAPI[]>("lists", LIST_PROMPT, ChatReasoningEffortLevel.High, model,
+            ParseListProposal,
+            (x, y) => y.analysisData.listAPI = x));
         if (model.consts.Any())
         {
             var prompt = ComposeEnumPrompt(model.consts.Select(x => x.name).ToList());
-            (cad.groupedEnums, cad.keptConsts) = GetAuto("enums", prompt, ThinkValue.High, model, ParseEnumProposal);
+            jobs.Add(new LLMJob<ClassModel, (GroupedEnum[], string[])>("enums", prompt, ChatReasoningEffortLevel.High,
+                model,
+                ParseEnumProposal,
+                (x, y) =>
+                {
+                    var cad = y.analysisData;
+                    cad.groupedEnums = x.Item1;
+                    cad.keptConsts = x.Item2;
+                }));
         }
         else
         {
-            cad.groupedEnums = [];
-            cad.keptConsts = [];
+            model.analysisData.groupedEnums = [];
+            model.analysisData.keptConsts = [];
         }
     }
 
-    public static void ClearCache()
+    private class LLMJob<TIn, TOut> : ILLMJob
+        where TIn : IHashable, IHasHtmlDocs
     {
-        Directory.Delete(Program.LLM_CACHE_ROOT, true);
+        public string queryId { get; }
+        private readonly Prompt _prompt;
+        private readonly ChatReasoningEffortLevel? _thinkValue;
+        private readonly TIn _input;
+        private readonly Func<string, TOut> _parser;
+        private readonly Action<TOut, TIn> _writer;
+
+        public LLMJob(string queryId, Prompt prompt, ChatReasoningEffortLevel? thinkValue, TIn input,
+            Func<string, TOut> parser,
+            Action<TOut, TIn> writer)
+        {
+            this.queryId = queryId;
+            _prompt = prompt;
+            _thinkValue = thinkValue;
+            _input = input;
+            _parser = parser;
+            _writer = writer;
+        }
+
+        public int inputHash => _input.stableHashCode;
+
+        public void Run()
+        {
+            var r = GetAuto(queryId, _prompt, _thinkValue, _input, _parser);
+            _writer(r, _input);
+        }
     }
 
-    private static TOut GetAuto<TIn, TOut>(string queryId, Prompt prompt, ThinkValue? tv, TIn target,
+    #endregion
+
+    #region Requests
+
+    private static TOut GetAuto<TIn, TOut>(string queryId, Prompt prompt, ChatReasoningEffortLevel? tv, TIn target,
         Func<string, TOut> parser)
         where TIn : IHashable, IHasHtmlDocs
     {
@@ -285,18 +329,11 @@ public static class LLMTools
         Directory.CreateDirectory(folderName);
         while (true)
         {
-            var timeId = DateTime.Now.ToString().Replace(':', '.').Replace(' ', '_');
-            string? answer;
+            string answer;
             if (Program.USE_OPENROUTER)
-            {
                 answer = RequestOpenRouter(prompt, target.htmlDocumentation, tv);
-            }
             else
-            {
-                string? thinking;
-                (thinking, answer) = RequestOllama(prompt, target.htmlDocumentation, tv);
-                File.WriteAllText($"{cacheFileName}_thinking_{timeId}.txt", thinking);
-            }
+                answer = RequestLocal(prompt, target.htmlDocumentation, tv);
 
             TOut result;
             try
@@ -305,7 +342,7 @@ public static class LLMTools
             }
             catch
             {
-                File.WriteAllText($"{cacheFileName}_broken_{timeId}.txt", answer);
+                File.WriteAllText($"{cacheFileName}_broken_{DateTime.Now.Ticks}.txt", answer);
                 continue;
             }
 
@@ -314,57 +351,28 @@ public static class LLMTools
         }
     }
 
-    private static (string? thinking, string answer) RequestOllama(Prompt prompt, string data, ThinkValue? tv)
+    private static string RequestOpenRouter(Prompt prompt, string data, ChatReasoningEffortLevel? tv)
     {
-        var ollama = new OllamaApiClient(new Uri(Program.OLLAMA_HOST));
-        ollama.SelectedModel = Program.MODEL;
-
-        if (!Program.MODEL.Contains("gpt-oss"))
-            tv = new ThinkValue(true); // for deepseek
-
-        var messages = new List<Message>
-        {
-            new Message(ChatRole.System, prompt.system)
-        };
-        foreach (var example in prompt.examples)
-        {
-            messages.Add(new Message(ChatRole.User, example.Item1));
-            messages.Add(new Message(ChatRole.Assistant, example.Item2));
-        }
-
-        messages.Add(new Message(ChatRole.User, data));
-
-        var request = new ChatRequest
-        {
-            Model = ollama.SelectedModel,
-            Messages = messages,
-            Think = tv ?? new ThinkValue(false)
-        };
-
-        var chatTask = Task.Run(async () =>
-        {
-            StringBuilder think = new();
-            StringBuilder final = new();
-
-            await foreach (var stream in ollama.ChatAsync(request))
-            {
-                think.Append(stream?.Message.Thinking);
-                final.Append(stream?.Message.Content);
-            }
-
-            return (think.ToString(), final.ToString());
-        });
-        return chatTask.Result;
+        var t = RequestOAI(prompt, data, tv, "https://openrouter.ai/api/v1", Secrets.OPENROUTER_KEY,
+            Program.OPENROUTER_MODEL);
+        Thread.Sleep(15000);
+        return t;
     }
 
-    private static string RequestOpenRouter(Prompt prompt, string data, ThinkValue? tv)
+    private static string RequestLocal(Prompt prompt, string data, ChatReasoningEffortLevel? tv)
+    {
+        return RequestOAI(prompt, data, tv, Program.LOCAL_HOST, Secrets.LOCAL_KEY, Program.LOCAL_MODEL);
+    }
+
+    private static string RequestOAI(Prompt prompt, string data, ChatReasoningEffortLevel? tv, string url, string token,
+        string model)
     {
         OpenAIClientOptions opts = new()
         {
-            Endpoint = new Uri("https://openrouter.ai/api/v1")
+            Endpoint = new Uri(url)
         };
-        ApiKeyCredential key = new ApiKeyCredential(Secrets.OPENROUTER_KEY);
-        ChatClient client = new("openai/gpt-oss-20b:free", key, opts);
+        ApiKeyCredential key = new ApiKeyCredential(token);
+        ChatClient client = new(model, key, opts);
 
         List<ChatMessage> messages = [new SystemChatMessage(prompt.system)];
 
@@ -378,16 +386,20 @@ public static class LLMTools
 
         var chatOpts = new ChatCompletionOptions();
         if (tv != null)
-            chatOpts.ReasoningEffortLevel = new ChatReasoningEffortLevel(tv.ToString());
+            chatOpts.ReasoningEffortLevel = tv.Value;
 
         var chat = client.CompleteChatAsync(messages, chatOpts);
         ChatCompletion completion = chat.Result;
 
         var text = completion.Content[0].Text;
 
-        Thread.Sleep(10000);
+        Thread.Sleep(15000);
         return text;
     }
+
+    #endregion
+
+    #region Parsers
 
     private static (GroupedEnum[], string[]) ParseEnumProposal(string input)
     {
@@ -403,7 +415,7 @@ public static class LLMTools
 
         var lines = input.Split('\n');
         var groups = new List<GroupedEnum>();
-        string[] couldNotGroup = Array.Empty<string>();
+        string[] couldNotGroup = [];
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -416,12 +428,13 @@ public static class LLMTools
                 string prefix = isFlags ? flagsPrefix : exclusivePrefix;
                 int prefixLength = prefix.Length;
 
-                int enumStartIndex = line.IndexOf(enumDelimiterStart, prefixLength);
+                int enumStartIndex = line.IndexOf(enumDelimiterStart, prefixLength, StringComparison.Ordinal);
                 if (enumStartIndex == -1) throw new FormatException("Invalid enum format: missing start delimiter.");
 
                 string name = line.Substring(prefixLength, enumStartIndex - prefixLength).Trim();
 
-                int enumEndIndex = line.IndexOf(enumDelimiterEnd, enumStartIndex + enumDelimiterStart.Length);
+                int enumEndIndex = line.IndexOf(enumDelimiterEnd, enumStartIndex + enumDelimiterStart.Length,
+                    StringComparison.Ordinal);
                 if (enumEndIndex == -1) throw new FormatException("Invalid enum format: missing end delimiter.");
 
                 string membersStr = line.Substring(enumStartIndex + enumDelimiterStart.Length,
@@ -448,7 +461,7 @@ public static class LLMTools
                 if (!returnedLine.StartsWith(returnedPrefix)) throw new FormatException("Expected 'Returned by' line.");
                 string returnedStr = returnedLine.Substring(returnedPrefix.Length).Trim();
                 string[] returnedIn = returnedStr == noneValue
-                    ? Array.Empty<string>()
+                    ? []
                     : returnedStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
                         .ToArray();
 
@@ -513,7 +526,9 @@ public static class LLMTools
         return JsonConvert.DeserializeObject<ListAPI[]>(string.Join("lists", lines))!;
     }
 
-    public static bool CantBeNull(string type)
+    #endregion
+
+    private static bool CantBeNull(string type)
     {
         switch (type)
         {

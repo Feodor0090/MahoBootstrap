@@ -1,5 +1,4 @@
 ﻿using System.Collections.Frozen;
-using ikvm.extensions;
 using MahoBootstrap.Models;
 using MahoBootstrap.Outputs;
 
@@ -10,12 +9,13 @@ internal class Program
     public static FrozenDictionary<string, ClassModel> models = null!;
 
     public const string LLM_CACHE_ROOT = "/home/ansel/mbs_cache";
-    public const string OLLAMA_HOST = "http://127.0.0.1:11434";
-    public const string MODEL = "gpt-oss:20b";
+    public const string LOCAL_HOST = "http://localhost:11376";
+    public const string LOCAL_MODEL = "ggml-org/gpt-oss-20b-GGUF";
+    public const string OPENROUTER_MODEL = "openai/gpt-oss-20b:free";
     public const string DOCS_REPO = "/home/ansel/repos/j2me/J2ME_Docs/docs";
     public const string ARMAN_JDL = "/home/ansel/Desktop/javadocs";
     public const string MIDLET_SHARP_TARGET = "/tmp/mbs/cs";
-    public const bool USE_OPENROUTER = true;
+    public const bool USE_OPENROUTER = false;
 
     public static void Main(string[] args)
     {
@@ -107,19 +107,24 @@ internal class Program
         Console.WriteLine("Read ok!");
         Console.WriteLine(
             $"Total: {classes.Count} classes, {classes.Values.Sum(x => x.methods.Length)} methods, {classes.Values.Sum(x => x.consts.Length)} constants, {classes.Values.Sum(x => x.fields.Length)} fields");
-        if (classes.Values.GroupBy(x => x.fullName.hashCode()).Any(x => x.Count() != 1))
-            throw new ArgumentException("Duplicated hash code!");
 
-        int i = classes.Count;
-        foreach (var cls in classes.Values)
+        List<ILLMJob> jobs = new();
+        foreach (var cls in classes.Values.OrderBy(x => x.fullName))
         {
-            Console.CursorLeft = 0;
-            Console.Write($"{i} classes left...      ");
-            LLMTools.Process(cls);
+            LLMTools.Queue(jobs, cls);
         }
 
-        Console.CursorLeft = 0;
-        Console.WriteLine("Analysis done!");
+        var dupHashes = jobs.GroupBy(x => (x.inputHash, x.queryId)).Where(x => x.Count() != 1).ToList();
+        if (dupHashes.Count != 0)
+            throw new ArgumentException("Duplicated hash codes!");
+
+        for (var i = 0; i < jobs.Count; i++)
+        {
+            Console.CursorLeft = 0;
+            Console.Write($"Processing LLM job {i + 1}/{jobs.Count} \"{jobs[i].queryId}\"...        ");
+            jobs[i].Run();
+        }
+        Console.WriteLine();
 
         models = classes.ToFrozenDictionary();
 

@@ -2,9 +2,9 @@ namespace MahoBootstrap.Models;
 
 public class ClassAnalysisData
 {
-    public ListAPI[] listAPI;
-    public GroupedEnum[] groupedEnums;
-    public string[] keptConsts;
+    public ListAPI[]? listAPI;
+    public GroupedEnum[]? groupedEnums;
+    public string[]? keptConsts;
 }
 
 public struct ListAPI

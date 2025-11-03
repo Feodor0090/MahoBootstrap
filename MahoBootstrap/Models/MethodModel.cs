@@ -12,7 +12,7 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
     public string htmlDocumentation { get; }
 
     public ClassModel? owner;
-    public MethodAnalysisData? analysisData;
+    public MethodAnalysisData analysisData = new();
 
     public MethodModel(MethodPrototype mp) : base(mp)
     {
@@ -32,7 +32,7 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
         htmlDocumentation = docs;
     }
 
-    public MethodStyle MethodStyle
+    public MethodStyle methodStyle
     {
         get
         {
@@ -52,11 +52,11 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
         }
     }
 
-    public string PropertyType
+    public string propertyType
     {
         get
         {
-            switch (MethodStyle)
+            switch (methodStyle)
             {
                 case MethodStyle.Getter:
                     return returnType;
@@ -67,14 +67,15 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
                 case MethodStyle.IndexSetter:
                     return arguments[1].type;
                 default:
-                    throw new ArgumentOutOfRangeException();
+                    return null!;
             }
         }
     }
 
     public override string ToString()
     {
-        return $"{returnType} {name}()";
+
+        return $"{returnType} {name}({string.Join(", ", arguments.Select(x => x.name))})";
     }
 
 

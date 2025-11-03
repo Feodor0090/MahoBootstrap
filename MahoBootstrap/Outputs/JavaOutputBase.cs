@@ -159,7 +159,7 @@ public abstract class JavaOutputBase : Output
         psi.ArgumentList.Add("-c");
         psi.ArgumentList.Add(
             $"javac -d \"{binPath}\" -sourcepath \"{sourcePath}\" -bootclasspath classes `find \"{sourcePath}\" -name \"*.java\"`");
-        Process.Start(psi).WaitForExit();
+        Process.Start(psi)!.WaitForExit();
     }
 
     protected abstract Expression GetReadonlyInitializer(FieldModel field, ClassOrInterfaceDeclaration cls);

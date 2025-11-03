@@ -22,7 +22,7 @@ public sealed class ClassModel : IEquatable<ClassModel>, IHashable, IHasHtmlDocs
     public readonly ImmutableArray<ConstModel> consts;
     public string htmlDocumentation { get; }
 
-    public ClassAnalysisData? analysisData;
+    public ClassAnalysisData analysisData = new();
 
     /// <summary>
     /// Froze prototype to read-only model.
