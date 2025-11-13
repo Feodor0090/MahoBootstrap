@@ -89,7 +89,7 @@ public static class LLMTools
 
     public const string LIST_PROMPT = "Here is a javadoc for a class. Analyze it. " +
                                       "Does it look like a container for some child items? " +
-                                      "If no, answer with one phrase as simple text: \"Not a list\".\n\n" +
+                                      "If no, answer with empty json array: \n```\n[]\n```\n\n" +
                                       "If it seems so, find method signatures that allow to interact with object's children.\n\n" +
                                       "Answer in the following JSON format:\n```\n" +
                                       "[\n{\n  \"type\": \"pkg.Class1\",\n" +
