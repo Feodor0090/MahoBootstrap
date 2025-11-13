@@ -10,6 +10,7 @@ public class ClassAnalysisData
 public struct ListAPI
 {
     public string listType;
+    public string name;
     public string? getMethod;
     public string? setMethod;
     public string? addMethod;

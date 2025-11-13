@@ -93,6 +93,7 @@ public static class LLMTools
                                       "If it seems so, find method signatures that allow to interact with object's children.\n\n" +
                                       "Answer in the following JSON format:\n```\n" +
                                       "[\n{\n  \"type\": \"pkg.Class1\",\n" +
+                                      "  \"name\":\"items\",\n" +
                                       "  \"operation1\": \"Full.Return.Type.Signature fullMethodSignature(Full.Argument.Type arg1name, Another.Full.Argument.Type arg2)\",\n" +
                                       "  \"operation2\": \"void insert(int position, pkg.Class1 child)\",\n" +
                                       "  \"operation3\": ...,\n  ...\n},\n{ ... }\n]" +
@@ -107,11 +108,13 @@ public static class LLMTools
                                       "- Remove all (`clear`)\n" +
                                       "- Get enumerator to enumerate all children (`enum`) \n" +
                                       "- Get count (`count`)\n\n" +
+                                      "Also write type of the list (if object operates over strings, \"type\" is `java.lang.String`). " +
+                                      "Also come up with a name for the list. If no specific name fits (images, textures, files, etc.), try generic ones like \"items\" or \"children\".\n"+
                                       "If no method found for an operation, it is valid, write as `\"operation\": null`. " +
                                       "If you can't find most of methods including important ones (like `get`), may be, this class is not a list?\n\n" +
                                       "In the case when there are multiple methods for the same operation, look at accepted/returned types. Non-matching ones are helpers, ignore them.\n\n" +
-                                      "In the case when class operates a list of tuples (`set` accepts multiple values, there are separate getters for each one), threat the class as *not a list*.\n\n" +
-                                      "In the case when class clearly keeps multiple child lists of different types, repeat for each one - in answer example i left a declaration for multiple lists.\n\n";
+                                      "In the case when class operates a list of tuples (`set` accepts multiple values, there are separate getters for each one), threat this case as *not a list*.\n\n" +
+                                      "In the case when class clearly keeps multiple child lists of different types, return an array with two or more objects (for each list).\n\n";
 
     public const string NULLABLE_PROMPT = "Here is a javadoc for a method in a class. Analyze it. " +
                                           "For each parameter and return type, understand, can it accept/return null values?\n" +
