@@ -195,12 +195,39 @@ public class MidletSharpOutput : Output
         foreach (var (get, set) in props)
         {
             MethodModel refModel = get ?? set!;
+            string nullableMark = "";
+            if (get?.analysisData.nullability != null)
+            {
+                if (get.analysisData.nullability.TryGetValue("return", out var val) && val)
+                    nullableMark = "?";
+            }
+
+            if (set?.analysisData.nullability != null)
+            {
+                if (set.analysisData.nullability.TryGetValue(set.arguments[0].name, out var val) && val)
+                    nullableMark = "?";
+            }
+
             lines.Add(
-                $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.propertyType), ns)} {MapName(refModel)} {{");
+                $"{refModel.dotnetAccessMod} {refModel.dotnetMethodType} extern {CutNamespace(MapType(refModel.propertyType), ns)}{nullableMark} {MapName(refModel)} {{");
             if (get != null)
-                lines.Add($"    [MapTo(\"{get.name}\")] get;");
+            {
+                if (get.analysisData.xmldoc != null)
+                    foreach (var line in get.analysisData.xmldoc.Split('\n'))
+                        lines.Add("    " + line);
+                var pureAttr = get.analysisData.effect == MethodEffect.Pure ? " [System.Pure]" : "";
+                lines.Add($"    [MapTo(\"{get.name}\")]{pureAttr} get;");
+            }
+
             if (set != null)
-                lines.Add($"    [MapTo(\"{set.name}\")] set;");
+            {
+                if (set.analysisData.xmldoc != null)
+                    foreach (var line in set.analysisData.xmldoc.Split('\n'))
+                        lines.Add("    " + line);
+                var pureAttr = set.analysisData.effect == MethodEffect.Pure ? " [System.Pure]" : "";
+                lines.Add($"    [MapTo(\"{set.name}\")]{pureAttr} set;");
+            }
+
             lines.Add("}\n");
         }
 
