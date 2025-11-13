@@ -1,6 +1,7 @@
 using System.ClientModel;
 using System.Text;
 using MahoBootstrap.Models;
+using MahoBootstrap.Prototypes;
 using Newtonsoft.Json;
 using OpenAI;
 using OpenAI.Chat;
@@ -236,12 +237,16 @@ public static class LLMTools
             jobs.Add(new LLMJob<MethodModel, string>("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples),
                 ChatReasoningEffortLevel.Low, method, equalParser, (x, y) => y.analysisData.xmldoc = x));
 
-            jobs.Add(new LLMJob<MethodModel, MethodEffect>("effects", IMPL_PROMPT, ChatReasoningEffortLevel.Medium,
-                method, ParseMethodEffect, (x, y) => y.analysisData.effect = x, true));
+            if (!model.isInterface && method.type != MemberType.Abstract)
+            {
+                jobs.Add(new LLMJob<MethodModel, MethodEffect>("effects", IMPL_PROMPT, ChatReasoningEffortLevel.Medium,
+                    method, ParseMethodEffect, (x, y) => y.analysisData.effect = x, true));
 
-            if (method.throws.Length != 0)
-                jobs.Add(new LLMJob<MethodModel, string?>("throws", ALWAYS_THROWS_PROMPT, ChatReasoningEffortLevel.Low,
-                    method, ParseMethodThrows, (x, y) => y.analysisData.alwaysThrows = x, true));
+                if (method.throws.Length != 0)
+                    jobs.Add(new LLMJob<MethodModel, string?>("throws", ALWAYS_THROWS_PROMPT,
+                        ChatReasoningEffortLevel.Low,
+                        method, ParseMethodThrows, (x, y) => y.analysisData.alwaysThrows = x, true));
+            }
 
             if (CantBeNull(method.returnType) && method.arguments.All(x => CantBeNull(x.type)))
             {
