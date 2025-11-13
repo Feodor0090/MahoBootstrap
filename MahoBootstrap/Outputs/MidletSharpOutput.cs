@@ -235,20 +235,56 @@ public class MidletSharpOutput : Output
         {
             var argsList = FormatArguments(m, ns);
             lines.Add($"[MapTo(\"{m.name}\")]");
+            var retT = CutNamespace(MapType(m.returnType), ns);
+            if (m.analysisData.nullability != null && m.analysisData.nullability.TryGetValue("return", out var val) &&
+                val)
+            {
+                retT += "?";
+            }
+
+            var decl = $"{MapName(m)}({argsList})";
+
+            if (m.analysisData.xmldoc != null)
+                lines.Add(m.analysisData.xmldoc);
+
             if (model.isInterface)
             {
-                lines.Add($"{CutNamespace(MapType(m.returnType), ns)} {MapName(m)}({argsList});\n");
+                lines.Add($"{retT} {decl};\n");
             }
             else
             {
-                string mt = m.dotnetMethodType;
-                if (mt != "abstract")
+                string prefix = $"{m.dotnetAccessMod} {m.dotnetMethodType}";
+                if (m.dotnetMethodType == "abstract")
                 {
-                    mt += " extern";
+                    lines.Add($"{prefix} {retT} {decl};\n");
                 }
-
-                lines.Add(
-                    $"{m.dotnetAccessMod} {mt} {CutNamespace(MapType(m.returnType), ns)} {MapName(m)}({argsList});\n");
+                else
+                {
+                    if (m.analysisData.alwaysThrows != null)
+                    {
+                        lines.Add(
+                            $"{prefix} {retT} {decl} => throw new {MapType(m.analysisData.alwaysThrows)}();\n");
+                    }
+                    else
+                    {
+                        switch (m.analysisData.effect ?? MethodEffect.HasSideEffects)
+                        {
+                            case MethodEffect.Empty:
+                                lines.Add("[System.Pure]");
+                                lines.Add($"{prefix} {retT} {decl} {{ }}\n");
+                                break;
+                            case MethodEffect.Pure:
+                                lines.Add("[System.Pure]");
+                                lines.Add($"{prefix} extern {retT} {decl};\n");
+                                break;
+                            case MethodEffect.HasSideEffects:
+                                lines.Add($"{prefix} extern {retT} {decl};\n");
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+                    }
+                }
             }
         }
     }
