@@ -124,7 +124,16 @@ internal class Program
         {
             Console.CursorLeft = 0;
             Console.Write($"Processing LLM job {i + 1}/{jobs.Count} \"{jobs[i].queryId}\"...        ");
-            jobs[i].Run();
+            try
+            {
+                jobs[i].Run();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Exception: {e.GetType()}, skipping...");
+                Thread.Sleep(20000);
+                // ignore
+            }
         }
 
         Console.WriteLine();
