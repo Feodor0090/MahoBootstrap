@@ -4,14 +4,14 @@ using MahoBootstrap.Prototypes;
 
 namespace MahoBootstrap.Models;
 
-public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
+public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs, IHasOwner
 {
     public readonly string returnType;
     public readonly string name;
     public readonly MemberType type;
     public string htmlDocumentation { get; }
 
-    public ClassModel? owner;
+    public ClassModel? owner { get; set; }
     public MethodAnalysisData analysisData = new();
 
     public MethodModel(MethodPrototype mp) : base(mp)
@@ -74,8 +74,7 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs
 
     public override string ToString()
     {
-
-        return $"{returnType} {name}({string.Join(", ", arguments.Select(x => x.name))})";
+        return $"{returnType} {name}({string.Join(", ", arguments.Select(x => $"{x.type} {x.name}"))})";
     }
 
 
