@@ -1,8 +1,10 @@
 using System.ClientModel;
+using System.Text;
 using MahoBootstrap.Models;
 using Newtonsoft.Json;
 using OpenAI;
 using OpenAI.Chat;
+using static System.StringSplitOptions;
 
 #pragma warning disable OPENAI001
 
@@ -86,7 +88,7 @@ public static class LLMTools
 
     public const string LIST_PROMPT = "Here is a javadoc for a class. Analyze it. " +
                                       "Does it look like a container for some child items? " +
-                                      "If no, answer with one phrase: \"Not a list\".\n\n" +
+                                      "If no, answer with one phrase as simple text: \"Not a list\".\n\n" +
                                       "If it seems so, find method signatures that allow to interact with object's children.\n\n" +
                                       "Answer in the following JSON format:\n```\n" +
                                       "[\n{\n  \"type\": \"pkg.Class1\",\n" +
@@ -233,14 +235,13 @@ public static class LLMTools
                 ChatReasoningEffortLevel.Low, method, equalParser, (x, y) => y.analysisData.javadoc = x));
             jobs.Add(new LLMJob<MethodModel, string>("xmldocs", new Prompt(XMLDOC_PROMPT, xmldocExamples),
                 ChatReasoningEffortLevel.Low, method, equalParser, (x, y) => y.analysisData.xmldoc = x));
+
             jobs.Add(new LLMJob<MethodModel, MethodEffect>("effects", IMPL_PROMPT, ChatReasoningEffortLevel.Medium,
-                method,
-                ParseMethodEffect, (x, y) => y.analysisData.effect = x));
+                method, ParseMethodEffect, (x, y) => y.analysisData.effect = x, true));
 
             if (method.throws.Length != 0)
                 jobs.Add(new LLMJob<MethodModel, string?>("throws", ALWAYS_THROWS_PROMPT, ChatReasoningEffortLevel.Low,
-                    method,
-                    ParseMethodThrows, (x, y) => y.analysisData.alwaysThrows = x));
+                    method, ParseMethodThrows, (x, y) => y.analysisData.alwaysThrows = x, true));
 
             if (CantBeNull(method.returnType) && method.arguments.All(x => CantBeNull(x.type)))
             {
@@ -253,25 +254,22 @@ public static class LLMTools
             {
                 jobs.Add(new LLMJob<MethodModel, Dictionary<string, bool>>("nulls",
                     new Prompt(NULLABLE_PROMPT, nullableExamples), ChatReasoningEffortLevel.Medium, method,
-                    ParseMethodNullable, (x, y) => y.analysisData.nullability = x));
+                    ParseMethodNullable, (x, y) => y.analysisData.nullability = x, false));
             }
         }
 
         jobs.Add(new LLMJob<ClassModel, ListAPI[]>("lists", LIST_PROMPT, ChatReasoningEffortLevel.High, model,
-            ParseListProposal,
-            (x, y) => y.analysisData.listAPI = x));
-        if (model.consts.Any())
+            ParseListProposal, (x, y) => y.analysisData.listAPI = x));
+
+        var intConsts = model.consts.Where(x =>
+            x.dotnetType != typeof(string) && x.dotnetType != typeof(float) && x.dotnetType != typeof(double)).ToList();
+        if (intConsts.Count != 0)
         {
-            var prompt = ComposeEnumPrompt(model.consts.Select(x => x.name).ToList());
+            var prompt = ComposeEnumPrompt(intConsts.Select(x => x.name)
+                .ToList());
             jobs.Add(new LLMJob<ClassModel, (GroupedEnum[], string[])>("enums", prompt, ChatReasoningEffortLevel.High,
-                model,
-                ParseEnumProposal,
-                (x, y) =>
-                {
-                    var cad = y.analysisData;
-                    cad.groupedEnums = x.Item1;
-                    cad.keptConsts = x.Item2;
-                }));
+                model, ParseEnumProposal,
+                WriteEnumProposal));
         }
         else
         {
@@ -286,28 +284,29 @@ public static class LLMTools
         public string queryId { get; }
         private readonly Prompt _prompt;
         private readonly ChatReasoningEffortLevel? _thinkValue;
-        private readonly TIn _input;
+        internal readonly TIn input;
         private readonly Func<string, TOut> _parser;
         private readonly Action<TOut, TIn> _writer;
+        private readonly bool _summary;
 
         public LLMJob(string queryId, Prompt prompt, ChatReasoningEffortLevel? thinkValue, TIn input,
-            Func<string, TOut> parser,
-            Action<TOut, TIn> writer)
+            Func<string, TOut> parser, Action<TOut, TIn> writer, bool summary = false)
         {
             this.queryId = queryId;
             _prompt = prompt;
             _thinkValue = thinkValue;
-            _input = input;
+            this.input = input;
             _parser = parser;
             _writer = writer;
+            _summary = summary;
         }
 
-        public int inputHash => _input.stableHashCode;
+        public int inputHash => input.stableHashCode;
 
         public void Run()
         {
-            var r = GetAuto(queryId, _prompt, _thinkValue, _input, _parser);
-            _writer(r, _input);
+            var r = GetAuto(queryId, _prompt, _thinkValue, input, _parser, _summary);
+            _writer(r, input);
         }
     }
 
@@ -316,7 +315,7 @@ public static class LLMTools
     #region Requests
 
     private static TOut GetAuto<TIn, TOut>(string queryId, Prompt prompt, ChatReasoningEffortLevel? tv, TIn target,
-        Func<string, TOut> parser)
+        Func<string, TOut> parser, bool summary)
         where TIn : IHashable, IHasHtmlDocs
     {
         string folderName = Path.Combine(Program.LLM_CACHE_ROOT, queryId);
@@ -327,13 +326,56 @@ public static class LLMTools
         }
 
         Directory.CreateDirectory(folderName);
-        while (true)
+        for (int i = 0; i < 10; i++)
         {
             string answer;
+            string data = target.htmlDocumentation;
+            if (summary && target is IHasOwner ho)
+            {
+                var cls = ho.owner;
+                if (cls != null)
+                {
+                    StringBuilder sb = new StringBuilder();
+                    if (cls.isInterface)
+                        sb.Append($"<h1>In interface {cls.fullName}");
+                    else
+                        sb.Append($"<h1>In class {cls.fullName} extends {cls.parent ?? "java.lang.Object"}");
+                    if (!cls.implements.IsEmpty)
+                    {
+                        sb.Append(" implements");
+                        sb.Append(string.Join(", ", cls.implements));
+                    }
+
+                    sb.Append("</h1>");
+                    sb.Append("<br>");
+                    sb.Append("<h2>Members summary</h2>");
+                    sb.Append("<ul>");
+                    foreach (var fm in cls.fields)
+                    {
+                        sb.Append($"<li>{fm.fieldType} {fm.name}</li>");
+                    }
+
+                    foreach (var cm in cls.consts)
+                    {
+                        sb.Append($"<li>const {cm.fieldType} {cm.name}</li>");
+                    }
+
+                    foreach (var mm in cls.methods)
+                    {
+                        sb.Append($"<li>{mm}</li>");
+                    }
+
+                    sb.Append("</ul>");
+                    sb.Append("<br>\n<hr>\n");
+                    sb.Append(data);
+                    data = sb.ToString();
+                }
+            }
+
             if (Program.USE_OPENROUTER)
-                answer = RequestOpenRouter(prompt, target.htmlDocumentation, tv);
+                answer = RequestOpenRouter(prompt, data, tv);
             else
-                answer = RequestLocal(prompt, target.htmlDocumentation, tv);
+                answer = RequestLocal(prompt, data, tv);
 
             TOut result;
             try
@@ -349,6 +391,8 @@ public static class LLMTools
             File.WriteAllText($"{cacheFileName}.txt", answer);
             return result;
         }
+
+        throw new ApplicationException();
     }
 
     private static string RequestOpenRouter(Prompt prompt, string data, ChatReasoningEffortLevel? tv)
@@ -401,69 +445,68 @@ public static class LLMTools
 
     #region Parsers
 
+    const string exclusivePrefix = "exclusive enum ";
+    const string flagsPrefix = "flags enum ";
+    const string enumDelimiterStart = "{";
+    const string enumDelimiterEnd = "}";
+    const string acceptedPrefix = "Accepted in methods: ";
+    const string returnedPrefix = "Returned by: ";
+    const string couldNotGroupPrefix = "Could not group: ";
+    const string noneValue = "-";
+    const string noneValue2 = "none";
+    const string noneValue3 = "(none)";
+    const string noneValue4 = "<none>";
+    const char itemSeparator = ',';
+    static readonly string[] nones = [noneValue, noneValue2, noneValue3, noneValue4];
+
     private static (GroupedEnum[], string[]) ParseEnumProposal(string input)
     {
-        const string exclusivePrefix = "exclusive enum ";
-        const string flagsPrefix = "flags enum ";
-        const string enumDelimiterStart = "{";
-        const string enumDelimiterEnd = "}";
-        const string acceptedPrefix = "Accepted in methods: ";
-        const string returnedPrefix = "Returned by: ";
-        const string couldNotGroupPrefix = "Could not group: ";
-        const string noneValue = "-";
-        const char itemSeparator = ',';
-
-        var lines = input.Split('\n');
+        var lines = input.Split('\n', RemoveEmptyEntries | TrimEntries);
         var groups = new List<GroupedEnum>();
         string[] couldNotGroup = [];
 
         for (int i = 0; i < lines.Length; i++)
         {
-            string line = lines[i].Trim();
-            if (string.IsNullOrEmpty(line)) continue;
+            string line = lines[i];
 
             if (line.StartsWith(exclusivePrefix) || line.StartsWith(flagsPrefix))
             {
                 bool isFlags = line.StartsWith(flagsPrefix);
-                string prefix = isFlags ? flagsPrefix : exclusivePrefix;
-                int prefixLength = prefix.Length;
+                var pl = (isFlags ? flagsPrefix : exclusivePrefix).Length;
+                int enumStartIndex = line.IndexOf(enumDelimiterStart, pl, StringComparison.Ordinal);
+                if (enumStartIndex == -1)
+                    throw new FormatException("Invalid enum format: missing start delimiter.");
 
-                int enumStartIndex = line.IndexOf(enumDelimiterStart, prefixLength, StringComparison.Ordinal);
-                if (enumStartIndex == -1) throw new FormatException("Invalid enum format: missing start delimiter.");
-
-                string name = line.Substring(prefixLength, enumStartIndex - prefixLength).Trim();
+                string name = line.Substring(pl, enumStartIndex - pl).Trim();
 
                 int enumEndIndex = line.IndexOf(enumDelimiterEnd, enumStartIndex + enumDelimiterStart.Length,
                     StringComparison.Ordinal);
-                if (enumEndIndex == -1) throw new FormatException("Invalid enum format: missing end delimiter.");
+                if (enumEndIndex == -1)
+                    throw new FormatException("Invalid enum format: missing end delimiter.");
 
                 string membersStr = line.Substring(enumStartIndex + enumDelimiterStart.Length,
-                    enumEndIndex - (enumStartIndex + enumDelimiterStart.Length)).Trim();
-                string[] members = membersStr.Split(itemSeparator).Select(m => m.Trim())
-                    .Where(m => !string.IsNullOrEmpty(m)).ToArray();
+                    enumEndIndex - (enumStartIndex + enumDelimiterStart.Length));
+                string[] members = ParseCommaList(membersStr);
 
                 // Next line: Accepted
                 i++;
-                if (i >= lines.Length) throw new FormatException("Unexpected end of input after enum declaration.");
-                string acceptedLine = lines[i].Trim();
-                if (!acceptedLine.StartsWith(acceptedPrefix))
+                if (i >= lines.Length)
+                    throw new FormatException("Unexpected end of input after enum declaration.");
+                line = lines[i];
+                if (!line.StartsWith(acceptedPrefix))
                     throw new FormatException("Expected 'Accepted in methods' line.");
-                string acceptedStr = acceptedLine.Substring(acceptedPrefix.Length).Trim();
-                string[] usedIn = acceptedStr == noneValue
-                    ? Array.Empty<string>()
-                    : acceptedStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
-                        .ToArray();
+                var usedIn = ParseCommaList(line[acceptedPrefix.Length..]);
 
                 // Next line: Returned
                 i++;
-                if (i >= lines.Length) throw new FormatException("Unexpected end of input after accepted line.");
-                string returnedLine = lines[i].Trim();
-                if (!returnedLine.StartsWith(returnedPrefix)) throw new FormatException("Expected 'Returned by' line.");
-                string returnedStr = returnedLine.Substring(returnedPrefix.Length).Trim();
-                string[] returnedIn = returnedStr == noneValue
-                    ? []
-                    : returnedStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
-                        .ToArray();
+                if (i >= lines.Length)
+                    throw new FormatException("Unexpected end of input after accepted line.");
+                line = lines[i];
+                if (line.StartsWith(couldNotGroupPrefix))
+                    goto lastLine;
+                if (!line.StartsWith(returnedPrefix))
+                    throw new FormatException("Expected 'Returned by' line.");
+                string[] returnedIn = ParseCommaList(line[returnedPrefix.Length..]);
 
                 groups.Add(new GroupedEnum
                 {
@@ -473,20 +516,38 @@ public static class LLMTools
                     usedInMethods = usedIn,
                     returnedInMethods = returnedIn
                 });
+
+                continue;
             }
-            else if (line.StartsWith(couldNotGroupPrefix))
+
+            lastLine:
+            if (line.StartsWith(couldNotGroupPrefix))
             {
-                string cngStr = line.Substring(couldNotGroupPrefix.Length).Trim();
-                couldNotGroup = cngStr.Split(itemSeparator).Select(m => m.Trim()).Where(m => !string.IsNullOrEmpty(m))
-                    .ToArray();
+                couldNotGroup = ParseCommaList(line[couldNotGroupPrefix.Length..]);
+                continue;
             }
-            else
-            {
-                throw new FormatException($"Unexpected line: {line}");
-            }
+
+            throw new FormatException($"Unexpected line: {line}");
         }
 
         return (groups.ToArray(), couldNotGroup);
+    }
+
+    private static string[] ParseCommaList(string str)
+    {
+        str = str.Trim();
+        if (nones.Contains(str.ToLower()))
+            return [];
+        return str
+            .Split(itemSeparator, TrimEntries | RemoveEmptyEntries)
+            .Select(m => m.Trim('.')).ToArray();
+    }
+
+    private static void WriteEnumProposal((GroupedEnum[], string[]) x, ClassModel y)
+    {
+        var cad = y.analysisData;
+        cad.groupedEnums = x.Item1;
+        cad.keptConsts = x.Item2;
     }
 
     private static Dictionary<string, bool> ParseMethodNullable(string x)
