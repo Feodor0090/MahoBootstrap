@@ -147,7 +147,7 @@ internal class Program
                 new JavaHeadersOutput(classes.ToFrozenDictionary()).Accept("/tmp/mbs/java");
                 break;
             case "ms":
-                new MidletSharpOutput(classes.ToFrozenDictionary()).Accept(MIDLET_SHARP_TARGET);
+                new MidletSharpOutput().Accept(MIDLET_SHARP_TARGET);
                 break;
         }
     }

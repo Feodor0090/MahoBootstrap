@@ -87,10 +87,28 @@ public class MidletSharpOutput : Output
 
     private static void ProcessConstants(ClassModel model, List<string> lines)
     {
-        lines.Add("// CONSTANTS\n");
-        foreach (var cnst in model.consts)
+        List<ConstModel> list;
+        if (model.analysisData.keptConsts == null || model.analysisData.groupedEnums == null)
+            list = model.consts.ToList();
+        else
         {
-            lines.Add($"public const {MapType(cnst.fieldType)} {cnst.name} = {cnst.constantValue};\n");
+            // we take all constants
+            HashSet<ConstModel> set = new(model.consts);
+            // then remove moved ones
+            foreach (var @enum in model.analysisData.groupedEnums)
+            foreach (var member in @enum.members)
+                set.RemoveWhere(x => x.name == member);
+            // then add back "kept" ones
+            foreach (var keptConst in model.analysisData.keptConsts)
+                set.Add(model.consts.First(x => x.name == keptConst));
+            list = set.ToList();
+        }
+
+        if (list.Count > 0)
+        {
+            lines.Add("// CONSTANTS\n");
+            foreach (var cnst in list)
+                lines.Add($"public const {MapType(cnst.fieldType)} {cnst.name} = {cnst.constantValue};\n");
         }
     }
 
