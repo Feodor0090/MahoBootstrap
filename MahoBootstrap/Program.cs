@@ -118,15 +118,16 @@ internal class Program
         if (dupHashes.Count != 0)
             throw new ArgumentException("Duplicated hash codes!");
 
+        models = classes.ToFrozenDictionary();
+
         for (var i = 0; i < jobs.Count; i++)
         {
             Console.CursorLeft = 0;
             Console.Write($"Processing LLM job {i + 1}/{jobs.Count} \"{jobs[i].queryId}\"...        ");
             jobs[i].Run();
         }
-        Console.WriteLine();
 
-        models = classes.ToFrozenDictionary();
+        Console.WriteLine();
 
         switch (target)
         {
