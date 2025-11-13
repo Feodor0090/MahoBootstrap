@@ -69,6 +69,19 @@ public class MidletSharpOutput : Output
 
         sb.Append("}\n");
 
+        if (model.analysisData.groupedEnums != null)
+        {
+            foreach (var group in model.analysisData.groupedEnums)
+            {
+                if (group.flags)
+                    sb.Append("\n[System.Flags]");
+                sb.Append($"\npublic enum {group.name} {{\n");
+                foreach (var member in group.members)
+                    sb.Append($"    {member} = {model.consts.Single(x => x.name == member).constantValue},");
+                sb.Append("}\n");
+            }
+        }
+
         return sb.ToString();
     }
 
