@@ -12,7 +12,6 @@ public sealed class MethodModel : CodeModel, IHashable, IHasHtmlDocs, IHasOwner
     public string htmlDocumentation { get; }
 
     public ClassModel? owner { get; set; }
-    public MethodAnalysisData analysisData = new();
 
     public MethodModel(MethodPrototype mp) : base(mp)
     {

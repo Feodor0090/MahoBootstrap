@@ -7,6 +7,7 @@ public abstract class CodeModel : ModelBase
 {
     public readonly ImmutableArray<string> throws;
     public readonly ImmutableArray<CodeArgument> arguments;
+    public MethodAnalysisData analysisData = new();
 
     protected CodeModel(ICodePrototype proto) : base(proto.access)
     {

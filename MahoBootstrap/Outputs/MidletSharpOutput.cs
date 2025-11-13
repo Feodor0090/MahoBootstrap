@@ -186,8 +186,15 @@ public class MidletSharpOutput : Output
 
     private static string FormatArguments(CodeModel m, string ns)
     {
-        var argsList = string.Join(", ",
-            m.arguments.Select(x => $"{CutNamespace(MapType(x.type), ns)} {x.name}"));
-        return argsList;
+        var argsList = m.arguments.Select(x =>
+        {
+            string nullableMark;
+            if ((m.analysisData.nullability?.TryGetValue(x.name, out var value) ?? false) && value)
+                nullableMark = "?";
+            else
+                nullableMark = "";
+            return $"{CutNamespace(MapType(x.type), ns)}{nullableMark} {x.name}";
+        });
+        return string.Join(", ", argsList);
     }
 }
